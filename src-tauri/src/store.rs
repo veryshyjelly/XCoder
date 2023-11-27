@@ -69,7 +69,7 @@ impl Store {
         let file = File::create("store.json");
         match file {
             Ok(f) => {
-                let mut v = Store::new(directory);
+                let v = Store::new(directory);
                 match serde_json::to_writer(f, &v) {
                     Ok(_) => Ok(v),
                     Err(e) => Err(e.to_string()),
@@ -84,9 +84,9 @@ impl Store {
         match file {
             Ok(f) => match serde_json::from_reader(f) {
                 Ok(v) => Ok(v),
-                Err(err) => Err(err.to_string()),
+                Err(err) => Err(format!("error while parsing store.json: {}", err)),
             },
-            Err(err) => Err(err.to_string()),
+            Err(err) => Err(format!("error while opening store.json: {}", err)),
         }
     }
 
@@ -95,23 +95,10 @@ impl Store {
         match file {
             Ok(f) => match serde_json::to_writer(f, &self) {
                 Ok(_) => Ok(()),
-                Err(err) => Err(err.to_string()),
+                Err(err) => Err(format!("error while writing store.json: {}", err)),
             },
-            Err(err) => Err(err.to_string()),
+            Err(err) => Err(format!("error while opening store.json: {}", err)),
         }
-    }
-
-    pub async fn fill_problems(&mut self) -> Result<(), String> {
-        if self.solved_problems.is_none() {
-            self.solved_problems = Some(get_solved_problems()?)
-        }
-
-        if self.problems_list.is_none() {
-            self.problems_list = Some(get_problems_list().await?);
-            self.filter_problems()?;
-        }
-
-        Ok(())
     }
 
     pub fn filter_problems(&mut self) -> Result<(), String> {
@@ -136,11 +123,9 @@ impl Store {
         Ok(())
     }
 
-    pub async fn get_problem(&mut self) -> Result<Problem, String> {
-        self.fill_problems().await?;
+    pub fn get_problem(&self) -> Result<Problem, String> {
         if let Some(problem) = self.filtered_problems.as_ref().unwrap().get(self.index) {
-            let mut pr = problem.clone();
-            pr.scrape().await?;
+            let pr = problem.clone();
             Ok(pr)
         } else {
             Err("index out of range".into())
@@ -174,7 +159,7 @@ impl ContestType {
     }
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub enum Language {
     C,
     Cpp,

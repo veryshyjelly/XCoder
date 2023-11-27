@@ -1,4 +1,8 @@
-use crate::problem::{Problem, ProblemId};
+use crate::judge;
+use crate::judge::Verdict;
+use tauri::api::process::{Command, CommandEvent};
+
+use crate::problem::{get_problems_list, get_solved_problems, Problem, ProblemId};
 use crate::store::{ContestType, Language, StoreState};
 
 #[tauri::command]
@@ -52,22 +56,71 @@ pub fn set_show_solved(
 }
 
 #[tauri::command]
-pub fn next(store: tauri::State<'_, StoreState>) {
+pub fn next(store: tauri::State<'_, StoreState>) -> Result<(), String> {
     store.0.lock().unwrap().index += 1;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn previous(store: tauri::State<'_, StoreState>) -> Result<(), String> {
+    if store.0.lock().unwrap().index != 0 {
+        store.0.lock().unwrap().index -= 1;
+        Ok(())
+    } else {
+        Err("reached at top of list".into())
+    }
 }
 
 #[tauri::command]
 pub async fn get_problem(store: tauri::State<'_, StoreState>) -> Result<Problem, String> {
-    store.0.lock().unwrap().get_problem().await
+    if store.0.lock().unwrap().solved_problems.is_none() {
+        store.0.lock().unwrap().solved_problems = Some(get_solved_problems()?);
+    }
+
+    if store.0.lock().unwrap().problems_list.is_none() {
+        store.0.lock().unwrap().problems_list = Some(get_problems_list().await?);
+        store.0.lock().unwrap().filter_problems()?;
+    }
+
+    let mut problem = store.0.lock().unwrap().get_problem()?;
+    problem.scrape().await?;
+    Ok(problem)
 }
 
 #[tauri::command]
-pub fn previous(store: tauri::State<'_, StoreState>) {
-    store.0.lock().unwrap().index = usize::max(1, store.0.lock().unwrap().index) - 1
+pub async fn update_problems_list() -> Result<(), String> {
+    // here we have to use side car build in go to update the problem set
+    let (mut rx, _) = Command::new_sidecar("problems_sidecar")
+        .expect("failed to create `problems_sidecar` binary command")
+        .spawn()
+        .expect("Failed to spawn sidecar");
+
+    tauri::async_runtime::spawn(async move {
+        // read events such as stdout
+        while let Some(event) = rx.recv().await {
+            if let CommandEvent::Stdout(line) = event {
+                println!("message from sidecar: {}", line)
+            }
+        }
+    });
+
+    Ok(())
 }
 
 #[tauri::command]
-pub fn run() {}
+pub async fn run(store: tauri::State<'_, StoreState>) -> Result<Vec<Verdict>, String> {
+    let mut problem = store.0.lock().unwrap().get_problem()?.clone();
+    let directory = store.0.lock().unwrap().directory.clone();
+    let language = store.0.lock().unwrap().language.clone();
+    problem.scrape().await?;
+    judge::run(problem, directory, language).await
+}
 
 #[tauri::command]
-pub fn submit() {}
+pub async fn submit(store: tauri::State<'_, StoreState>) -> Result<Vec<Verdict>, String> {
+    let mut problem = store.0.lock().unwrap().get_problem()?.clone();
+    let directory = store.0.lock().unwrap().directory.clone();
+    let language = store.0.lock().unwrap().language.clone();
+    problem.scrape().await?;
+    judge::submit(problem, directory, language).await
+}

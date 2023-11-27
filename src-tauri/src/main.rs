@@ -3,7 +3,7 @@
 
 use commands::{
     get_directory, get_problem, next, previous, run, set_contest_type, set_directory, set_language,
-    set_problem_type, submit,
+    set_problem_type, set_show_solved, submit, update_problems_list,
 };
 
 use crate::store::StoreState;
@@ -22,11 +22,13 @@ fn main() {
             set_contest_type,
             set_problem_type,
             set_language,
-            next,
+            set_show_solved,
             get_problem,
+            next,
             previous,
             run,
-            submit
+            submit,
+            update_problems_list
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
