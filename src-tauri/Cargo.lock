@@ -4311,6 +4311,7 @@ name = "xcoder"
 version = "0.0.0"
 dependencies = [
  "csv",
+ "glob",
  "reqwest",
  "scraper",
  "serde",

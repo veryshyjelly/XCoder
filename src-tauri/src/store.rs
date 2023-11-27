@@ -90,7 +90,7 @@ impl Store {
         }
     }
 
-    pub fn save(self) -> Result<(), String> {
+    pub fn save(&self) -> Result<(), String> {
         let file = File::open("store.json");
         match file {
             Ok(f) => match serde_json::to_writer(f, &self) {
@@ -168,13 +168,10 @@ pub enum Language {
     Kotlin,
     Zig,
     Node,
-    R,
     Swift,
     Dart,
-    Julia,
     Haskell,
     Fortran,
-    Python,
     Ocaml,
 }
 
@@ -188,15 +185,46 @@ impl Language {
             "kotlin" => Ok(Language::Kotlin),
             "zig" => Ok(Language::Zig),
             "node" => Ok(Language::Node),
-            "r" => Ok(Language::R),
             "swift" => Ok(Language::Swift),
             "dart" => Ok(Language::Dart),
-            "julia" => Ok(Language::Julia),
             "haskell" => Ok(Language::Haskell),
             "fortran" => Ok(Language::Fortran),
-            "python" => Ok(Language::Python),
             "ocaml" => Ok(Language::Ocaml),
             _ => Err("invalid language".into()),
+        }
+    }
+
+    pub fn extension(&self) -> String {
+        match self {
+            Language::C => "c".into(),
+            Language::Cpp => "cpp".into(),
+            Language::Go => "go".into(),
+            Language::Rust => "rs".into(),
+            Language::Kotlin => "kt".into(),
+            Language::Zig => "zig".into(),
+            Language::Node => "js".into(),
+            Language::Swift => "swift".into(),
+            Language::Dart => "dart".into(),
+            Language::Haskell => "hs".into(),
+            Language::Fortran => "f90".into(),
+            Language::Ocaml => "ml".into(),
+        }
+    }
+
+    pub fn compiler(&self) -> String {
+        match self {
+            Language::C => "gcc".into(),
+            Language::Cpp => "g++".into(),
+            Language::Go => "go".into(),
+            Language::Rust => "rustc".into(),
+            Language::Kotlin => "kotlinc".into(),
+            Language::Zig => "zig".into(),
+            Language::Node => "node".into(),
+            Language::Swift => "swift".into(),
+            Language::Dart => "dart".into(),
+            Language::Haskell => "ghc".into(),
+            Language::Fortran => "gfortran".into(),
+            Language::Ocaml => "ocamlc".into(),
         }
     }
 }

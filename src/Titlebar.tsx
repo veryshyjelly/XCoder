@@ -1,4 +1,4 @@
-import { Center, Flex, Image, Text, Box } from "@mantine/core";
+import { Center, Flex, Image } from "@mantine/core";
 import { appWindow } from "@tauri-apps/api/window";
 import { useEffect, useState } from "react";
 

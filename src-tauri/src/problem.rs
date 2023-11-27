@@ -112,9 +112,29 @@ impl Problem {
                         .collect::<Vec<&str>>()
                         .join("\n");
                     let limits = limits_text.split("/");
+                    let time_limit: u32 = limits
+                        .clone()
+                        .nth(0)
+                        .unwrap()
+                        .split(" ")
+                        .nth(2)
+                        .unwrap()
+                        .parse()
+                        .unwrap();
+                    let memory_limit: u32 = limits
+                        .clone()
+                        .nth(1)
+                        .unwrap()
+                        .split(" ")
+                        .nth(3)
+                        .unwrap()
+                        .parse()
+                        .unwrap();
 
                     self.description = Some(description.html());
                     self.title = Some(title.split("Editorial").next().unwrap().trim().into());
+                    self.time_limit = Some(time_limit);
+                    self.memory_limit = Some(memory_limit);
                     Ok(())
                 }
                 Err(err) => Err(format!("error while getting problem text: {}", err)),
@@ -137,37 +157,22 @@ pub async fn get_problems_list() -> Result<Vec<Problem>, String> {
 
             for r in rdr.records() {
                 if let Ok(record) = r {
-                    let (ct, cid, pid, tl) =
+                    let (ct, cid, pid, link) =
                         (record.get(0), record.get(1), record.get(2), record.get(3));
-
-                    match ct {
-                        None => return Err("error while getting contest_type".into()),
-                        Some(contest_type) => match cid {
-                            None => return Err("error while getting contest_id".into()),
-                            Some(contest_id) => match pid {
-                                None => return Err("error while getting problem id".into()),
-                                Some(problem_id) => match tl {
-                                    None => {
-                                        return Err("error while getting test_cases_link".into());
-                                    }
-                                    Some(test_case_link) => {
-                                        let contest_type = ContestType::from_str(contest_type)?;
-                                        let problem_id = ProblemId::from_str(problem_id)?;
-                                        let problem = Problem::new(
-                                            contest_type,
-                                            contest_id
-                                                .parse()
-                                                .expect("error while parsing contest_id"),
-                                            problem_id,
-                                            test_case_link.into(),
-                                        );
-                                        problem_set.push(problem);
-                                    }
-                                },
-                            },
-                        },
-                    };
-                }
+                    if ct.is_none() || cid.is_none() || pid.is_none() || link.is_none() {
+                        return Err("error while getting problem".into());
+                    }
+                    if let Ok(contest_id) = cid.unwrap().parse::<u16>() {
+                        let contest_type = ContestType::from_str(ct.unwrap())?;
+                        let problem_id = ProblemId::from_str(pid.unwrap())?;
+                        let test_cases_link = link.unwrap().into();
+                        let problem =
+                            Problem::new(contest_type, contest_id, problem_id, test_cases_link);
+                        problem_set.push(problem);
+                    } else {
+                        return Err("error while parsing contest_id".into());
+                    }
+                };
             }
 
             Ok(problem_set)
@@ -202,28 +207,19 @@ pub fn get_solved_problems() -> Result<Vec<Problem>, String> {
 
             for r in rdr.records() {
                 if let Ok(record) = r {
-                    let (ct, cid, pid, tl) =
-                        (record.get(0), record.get(1), record.get(2), record.get(3));
+                    let (ct, cid, pid) = (record.get(0), record.get(1), record.get(2));
 
-                    match ct {
-                        None => return Err("error while getting contest_type".into()),
-                        Some(contest_type) => match cid {
-                            None => return Err("error while getting contest_id".into()),
-                            Some(contest_id) => match pid {
-                                None => return Err("error while getting problem id".into()),
-                                Some(problem_id) => {
-                                    let contest_type = ContestType::from_str(contest_type)?;
-                                    let problem_id = ProblemId::from_str(problem_id)?;
-                                    let problem = Problem::new(
-                                        contest_type,
-                                        contest_id.parse().expect("error while parsing contest_id"),
-                                        problem_id,
-                                        "".into(),
-                                    );
-                                    solved_problems.push(problem);
-                                }
-                            },
-                        },
+                    if ct.is_none() || cid.is_none() || pid.is_none() {
+                        return Err("error while getting problem".into());
+                    }
+
+                    if let Ok(contest_id) = cid.unwrap().parse::<u16>() {
+                        let contest_type = ContestType::from_str(ct.unwrap())?;
+                        let problem_id = ProblemId::from_str(pid.unwrap())?;
+                        let problem = Problem::new(contest_type, contest_id, problem_id, "".into());
+                        solved_problems.push(problem);
+                    } else {
+                        return Err("error while parsing contest_id".into());
                     }
                 };
             }
