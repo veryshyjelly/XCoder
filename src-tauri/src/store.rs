@@ -1,7 +1,7 @@
 use std::fmt;
 use std::fmt::Formatter;
 use std::fs::File;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
@@ -91,17 +91,30 @@ impl Store {
     }
 
     pub fn save(&self) -> Result<(), String> {
-        let file = File::open("store.json");
+        let file = File::create("store.json");
         match file {
             Ok(f) => match serde_json::to_writer(f, &self) {
-                Ok(_) => Ok(()),
-                Err(err) => Err(format!("error while writing store.json: {}", err)),
+                Ok(_) => {
+                    println!("successfully saved store.json");
+                    Ok(())
+                }
+                Err(err) => {
+                    println!("error while writing store.json: {}", err);
+                    Err(format!("error while writing store.json: {}", err))
+                }
             },
-            Err(err) => Err(format!("error while opening store.json: {}", err)),
+            Err(err) => {
+                println!("error while opening store.json: {}", err);
+                Err(format!("error while opening store.json: {}", err))
+            }
         }
     }
 
     pub fn filter_problems(&mut self) -> Result<(), String> {
+        if self.problems_list.is_none() {
+            return Ok(());
+        }
+
         let mut filtered_problems = self.problems_list.clone().unwrap();
         if !self.show_solved {
             filtered_problems = filtered_problems
@@ -129,6 +142,22 @@ impl Store {
             Ok(pr)
         } else {
             Err("index out of range".into())
+        }
+    }
+
+    pub fn create_file(&self) -> Result<(), String> {
+        let mut file_path = PathBuf::from(format!(
+            "{}/{}{}_{}/{}",
+            self.directory,
+            self.get_problem().unwrap().contest_type,
+            self.get_problem().unwrap().contest_id,
+            self.get_problem().unwrap().problem_id,
+            self.get_problem().unwrap().problem_id
+        ));
+        file_path.set_extension(self.language.extension());
+        match File::create(file_path) {
+            Ok(_) => Ok(()),
+            Err(err) => Err(format!("error while creating file: {}", err)),
         }
     }
 }

@@ -1,12 +1,13 @@
 use std::collections::HashMap;
-use std::fs;
 use std::io::{Cursor, Write};
 use std::os::windows::process::CommandExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::Duration;
+use std::{fs, io};
 
 use serde::{Deserialize, Serialize};
+use zip::ZipArchive;
 
 use crate::problem::*;
 use crate::store::Language;
@@ -63,7 +64,7 @@ impl Verdict {
             .trim()
             .to_string();
         self.output = Some(sol_output);
-        if self.output.unwrap().cmp(&self.answer) {
+        if self.answer.eq(self.output.as_ref().unwrap()) {
             self.status = Some(JudgeStatus::AC);
         } else {
             self.status = Some(JudgeStatus::WA);
@@ -91,7 +92,7 @@ impl Judge {
     }
 
     pub fn compile(&mut self) -> Result<(), String> {
-        let mut binary_path = PathBuf::from(format!(
+        let binary_path = PathBuf::from(format!(
             "{}/bin/{}{}_{}.exe",
             self.directory,
             self.problem.contest_type,
@@ -135,6 +136,10 @@ impl Judge {
     }
 
     pub async fn download_test_cases(&self) -> Result<(), String> {
+        if !Path::new(&format!("{}/test_cases", self.directory)).exists() {
+            fs::create_dir(&format!("{}/test_cases", self.directory)).unwrap();
+        }
+
         let test_cases_path = PathBuf::from(format!(
             "{}/test_cases/{}{}_{}",
             self.directory,
@@ -154,10 +159,28 @@ impl Judge {
         match reqwest::get(link).await {
             Ok(resp) => match resp.bytes().await {
                 Ok(archive) => {
-                    match zip_extract::extract(Cursor::new(archive), &test_cases_path, true) {
-                        Ok(()) => Ok(()),
-                        Err(err) => Err(format!("error while extracting problems: {}", err)),
+                    let mut zip_archive = ZipArchive::new(Cursor::new(archive)).unwrap();
+                    for i in 0..zip_archive.len() {
+                        let mut file = zip_archive.by_index(i).unwrap();
+                        let output_path = match file.enclosed_name() {
+                            Some(path) => test_cases_path.join(path.to_owned()),
+                            None => continue,
+                        };
+                        if file.name().ends_with('/') {
+                            fs::create_dir_all(&output_path).unwrap();
+                        } else {
+                            if let Some(p) = output_path.parent() {
+                                if !p.exists() {
+                                    fs::create_dir_all(&p).unwrap();
+                                }
+                            }
+                            let mut outfile =
+                                fs::File::create(&output_path).expect("error while creating file");
+                            io::copy(&mut file, &mut outfile)
+                                .expect("error while copying file data");
+                        }
                     }
+                    Ok(())
                 }
                 Err(err) => Err(format!("error while getting test_case: {}", err)),
             },
@@ -189,7 +212,7 @@ impl Judge {
             fs::read_to_string(input_file).unwrap(),
             fs::read_to_string(output_file).unwrap(),
         );
-        verdict.exec(&self.binary_path.unwrap())?;
+        verdict.exec(self.binary_path.as_ref().unwrap())?;
         Ok(verdict)
     }
 
@@ -207,6 +230,9 @@ pub async fn submit(
     directory: String,
     language: Language,
 ) -> Result<Vec<Verdict>, String> {
+    let mut judge = Judge::new(problem.clone(), directory.clone(), language);
+    judge.download_test_cases().await?;
+
     let in_paths = fs::read_dir(format!(
         "{}/test_cases/{}{}_{}/in",
         directory, problem.contest_type, problem.contest_id, problem.problem_id
@@ -217,9 +243,6 @@ pub async fn submit(
         directory, problem.contest_type, problem.contest_id, problem.problem_id
     ))
     .unwrap();
-
-    let mut judge = Judge::new(problem, directory, language);
-    judge.download_test_cases().await?;
 
     let mut file_names_map = HashMap::new();
     for path in in_paths {
@@ -252,6 +275,9 @@ pub async fn run(
     directory: String,
     language: Language,
 ) -> Result<Vec<Verdict>, String> {
+    let mut judge = Judge::new(problem.clone(), directory.clone(), language);
+    judge.download_test_cases().await?;
+
     let in_paths = fs::read_dir(format!(
         "{}/test_cases/{}{}_{}/in",
         directory, problem.contest_type, problem.contest_id, problem.problem_id
@@ -262,9 +288,6 @@ pub async fn run(
         directory, problem.contest_type, problem.contest_id, problem.problem_id
     ))
     .unwrap();
-
-    let mut judge = Judge::new(problem, directory, language);
-    judge.download_test_cases().await?;
 
     let mut file_names_map = HashMap::new();
     for path in in_paths {

@@ -2,8 +2,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use commands::{
-    get_directory, get_problem, next, previous, run, set_contest_type, set_directory, set_language,
-    set_problem_type, set_show_solved, submit, update_problems_list,
+    create_file, get_directory, get_problem, next, previous, run, save_state, set_contest_type,
+    set_directory, set_language, set_problem_type, set_show_solved, submit, update_problems_list,
 };
 
 use crate::store::StoreState;
@@ -28,7 +28,9 @@ fn main() {
             previous,
             run,
             submit,
-            update_problems_list
+            update_problems_list,
+            save_state,
+            create_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

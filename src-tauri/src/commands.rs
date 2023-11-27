@@ -1,7 +1,7 @@
-use crate::judge;
-use crate::judge::Verdict;
 use tauri::api::process::{Command, CommandEvent};
 
+use crate::judge;
+use crate::judge::Verdict;
 use crate::problem::{get_problems_list, get_solved_problems, Problem, ProblemId};
 use crate::store::{ContestType, Language, StoreState};
 
@@ -123,4 +123,15 @@ pub async fn submit(store: tauri::State<'_, StoreState>) -> Result<Vec<Verdict>,
     let language = store.0.lock().unwrap().language.clone();
     problem.scrape().await?;
     judge::submit(problem, directory, language).await
+}
+
+#[tauri::command]
+pub fn create_file(store: tauri::State<'_, StoreState>) -> Result<(), String> {
+    store.0.lock().unwrap().create_file()
+}
+
+#[tauri::command]
+pub fn save_state(store: tauri::State<'_, StoreState>) -> Result<(), String> {
+    println!("saving state");
+    store.0.lock().unwrap().save()
 }

@@ -38,7 +38,7 @@ impl ProblemId {
             "F" => Ok(ProblemId::F),
             "G" => Ok(ProblemId::G),
             "H" => Ok(ProblemId::H),
-            "Ex" => Ok(ProblemId::Ex),
+            "EX" => Ok(ProblemId::Ex),
             _ => Err("invalid problem id".into()),
         }
     }
@@ -87,7 +87,7 @@ impl Problem {
 
     pub async fn scrape(&mut self) -> Result<(), String> {
         match reqwest::get(format!(
-            "https://atcoder.jp/contests/{}{}/tasks/{}{}_{}",
+            "https://atcoder.jp/contests/{}{:03}/tasks/{}{:03}_{}",
             self.contest_type, self.contest_id, self.contest_type, self.contest_id, self.problem_id
         ))
         .await
@@ -104,7 +104,7 @@ impl Problem {
                         .text()
                         .collect::<Vec<&str>>()
                         .join("\n");
-                    let mut limits_text = document
+                    let limits_text = document
                         .select(&Selector::parse(".row > div:nth-child(2) > p").unwrap())
                         .next()
                         .unwrap()
@@ -163,12 +163,19 @@ pub async fn get_problems_list() -> Result<Vec<Problem>, String> {
                         return Err("error while getting problem".into());
                     }
                     if let Ok(contest_id) = cid.unwrap().parse::<u16>() {
-                        let contest_type = ContestType::from_str(ct.unwrap())?;
-                        let problem_id = ProblemId::from_str(pid.unwrap())?;
-                        let test_cases_link = link.unwrap().into();
-                        let problem =
-                            Problem::new(contest_type, contest_id, problem_id, test_cases_link);
-                        problem_set.push(problem);
+                        if let Ok(problem_id) = ProblemId::from_str(pid.unwrap()) {
+                            let contest_type = ContestType::from_str(ct.unwrap())?;
+                            let test_cases_link = link.unwrap().into();
+                            let problem =
+                                Problem::new(contest_type, contest_id, problem_id, test_cases_link);
+                            problem_set.push(problem);
+                        } else {
+                            return Err(format!(
+                                "error while parsing problem_id: {} {}",
+                                contest_id,
+                                pid.unwrap()
+                            ));
+                        }
                     } else {
                         return Err("error while parsing contest_id".into());
                     }
