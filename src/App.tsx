@@ -18,7 +18,7 @@ function App() {
     return (
         <Box className="border border-[#3c3f41]" style={{height: "100%", width: "100%", position: "fixed"}}>
             <TitleBar/>
-            {directory !== '' && <MainPage/>}
+            {directory !== '' && <MainPage setDirectory={setDirectory}/>}
             {directory === '' && <LandingPage setDirectory={setDirectory}/>}
         </Box>
     );

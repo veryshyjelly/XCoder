@@ -1,9 +1,16 @@
 import {Box, Flex, Image, Space, Stack, Text} from "@mantine/core";
 import {invoke} from "@tauri-apps/api";
 import {open} from '@tauri-apps/api/dialog';
-import React from "react";
+import React, {useEffect} from "react";
+import {appWindow, LogicalSize} from "@tauri-apps/api/window";
 
 const LandingPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateAction<string>> }) => {
+    useEffect(() => {
+        appWindow.setTitle("Welcome to XCoder");
+        appWindow.setSize(new LogicalSize(600, 450)).then(null);
+        appWindow.unmaximize().then(null);
+    }, [])
+
     const chooseFolder = async () => {
         const selected = await open({
             directory: true,
