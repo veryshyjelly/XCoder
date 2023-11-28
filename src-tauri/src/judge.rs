@@ -52,15 +52,15 @@ impl Verdict {
             .stdout(Stdio::piped())
             .creation_flags(0x08000000)
             .spawn()
-            .unwrap();
+            .map_err(|err| format!("error while running solution: {}", err))?;
         sol_process
             .stdin
             .take()
             .unwrap()
             .write_fmt(format_args!("{}", self.input))
-            .unwrap();
+            .map_err(|err| format!("error while giving input to solution: {}", err))?;
         let sol_output = String::from_utf8(sol_process.wait_with_output().unwrap().stdout)
-            .unwrap()
+            .map_err(|err| format!("error while getting output from solution: {}", err))?
             .trim()
             .to_string();
         self.output = Some(sol_output);
@@ -92,6 +92,11 @@ impl Judge {
     }
 
     pub fn compile(&mut self) -> Result<(), String> {
+        if !Path::new(&format!("{}/bin", self.directory)).exists() {
+            fs::create_dir(&format!("{}/bin", self.directory))
+                .map_err(|err| format!("error while creating bin folder: {}", err))?;
+        }
+
         let binary_path = PathBuf::from(format!(
             "{}/bin/{}{}_{}.exe",
             self.directory,
@@ -109,35 +114,32 @@ impl Judge {
         file_path.set_extension(self.language.extension());
 
         if !file_path.exists() {
-            return Err(format!("{} does not exist", file_path.display()));
+            return Err(format!("the file {} does not exist", file_path.display()));
         }
 
-        match Command::new(self.language.compiler())
+        let output = Command::new(self.language.compiler())
             .current_dir(&self.directory)
             .arg(file_path)
             .arg("-o")
             .arg(binary_path.clone())
             .creation_flags(0x08000000)
             .output()
-        {
-            Ok(output) => {
-                if output.status.success() {
-                    self.binary_path = Some(binary_path);
-                    Ok(())
-                } else {
-                    Err(format!(
-                        "error while compiling: {}",
-                        String::from_utf8_lossy(&output.stderr)
-                    ))
-                }
-            }
-            Err(err) => Err(format!("error while compiling: {}", err)),
+            .map_err(|err| format!("error while compiling: {}", err))?;
+        if output.status.success() {
+            self.binary_path = Some(binary_path);
+            Ok(())
+        } else {
+            Err(format!(
+                "error while compiling: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ))
         }
     }
 
     pub async fn download_test_cases(&self) -> Result<(), String> {
         if !Path::new(&format!("{}/test_cases", self.directory)).exists() {
-            fs::create_dir(&format!("{}/test_cases", self.directory)).unwrap();
+            fs::create_dir(&format!("{}/test_cases", self.directory))
+                .map_err(|err| format!("error while creating test_cases folder: {}", err))?;
         }
 
         let test_cases_path = PathBuf::from(format!(
@@ -155,37 +157,36 @@ impl Judge {
         let mut link = self.problem.test_cases_link.clone().trim().to_string();
         link.pop();
         link.push('1');
-
-        match reqwest::get(link).await {
-            Ok(resp) => match resp.bytes().await {
-                Ok(archive) => {
-                    let mut zip_archive = ZipArchive::new(Cursor::new(archive)).unwrap();
-                    for i in 0..zip_archive.len() {
-                        let mut file = zip_archive.by_index(i).unwrap();
-                        let output_path = match file.enclosed_name() {
-                            Some(path) => test_cases_path.join(path.to_owned()),
-                            None => continue,
-                        };
-                        if file.name().ends_with('/') {
-                            fs::create_dir_all(&output_path).unwrap();
-                        } else {
-                            if let Some(p) = output_path.parent() {
-                                if !p.exists() {
-                                    fs::create_dir_all(&p).unwrap();
-                                }
-                            }
-                            let mut outfile =
-                                fs::File::create(&output_path).expect("error while creating file");
-                            io::copy(&mut file, &mut outfile)
-                                .expect("error while copying file data");
-                        }
+        let mut archive = ZipArchive::new(Cursor::new(
+            reqwest::get(link)
+                .await
+                .map_err(|err| format!("error while getting test cases response: {}", err))?
+                .bytes()
+                .await
+                .map_err(|err| format!("error while getting test cases bytes: {}", err))?,
+        ))
+        .map_err(|err| format!("error while creating zip archive: {}", err))?;
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i).unwrap();
+            let output_path = match file.enclosed_name() {
+                Some(path) => test_cases_path.join(path.to_owned()),
+                None => continue,
+            };
+            if file.name().ends_with('/') {
+                fs::create_dir_all(&output_path).unwrap();
+            } else {
+                if let Some(p) = output_path.parent() {
+                    if !p.exists() {
+                        fs::create_dir_all(&p).unwrap();
                     }
-                    Ok(())
                 }
-                Err(err) => Err(format!("error while getting test_case: {}", err)),
-            },
-            Err(err) => Err(format!("error while getting test cases: {}", err)),
+                let mut outfile = fs::File::create(&output_path)
+                    .map_err(|err| format!("error while creating file: {}", err))?;
+                io::copy(&mut file, &mut outfile)
+                    .map_err(|err| format!("error while copying file data: {}", err))?;
+            }
         }
+        Ok(())
     }
 
     pub fn judge_by_filename(&mut self, file_name: String) -> Result<Verdict, String> {
@@ -237,12 +238,12 @@ pub async fn submit(
         "{}/test_cases/{}{}_{}/in",
         directory, problem.contest_type, problem.contest_id, problem.problem_id
     ))
-    .unwrap();
+    .map_err(|err| format!("error while reading in directory: {}", err))?;
     let out_paths = fs::read_dir(format!(
         "{}/test_cases/{}{}_{}/out",
         directory, problem.contest_type, problem.contest_id, problem.problem_id
     ))
-    .unwrap();
+    .map_err(|err| format!("error while reading out directory: {}", err))?;
 
     let mut file_names_map = HashMap::new();
     for path in in_paths {
@@ -267,8 +268,18 @@ pub async fn submit(
 
     let verdicts = judge.judge_by_filenames(file_names)?;
 
-    if verdicts.iter().all(|x| x.status.as_ref().unwrap_or(&JudgeStatus::CE).eq(&JudgeStatus::AC)) {
-        insert_solved_problem(BareProblem::new(problem.contest_type, problem.contest_id, problem.problem_id, "".into()))?;
+    if verdicts.iter().all(|x| {
+        x.status
+            .as_ref()
+            .unwrap_or(&JudgeStatus::CE)
+            .eq(&JudgeStatus::AC)
+    }) {
+        insert_solved_problem(BareProblem::new(
+            problem.contest_type,
+            problem.contest_id,
+            problem.problem_id,
+            "".into(),
+        ))?;
     }
 
     Ok(verdicts)
@@ -286,12 +297,12 @@ pub async fn run(
         "{}/test_cases/{}{}_{}/in",
         directory, problem.contest_type, problem.contest_id, problem.problem_id
     ))
-    .unwrap();
+    .map_err(|err| format!("error while reading in directory: {}", err))?;
     let out_paths = fs::read_dir(format!(
         "{}/test_cases/{}{}_{}/out",
         directory, problem.contest_type, problem.contest_id, problem.problem_id
     ))
-    .unwrap();
+    .map_err(|err| format!("error while reading out directory: {}", err))?;
 
     let mut file_names_map = HashMap::new();
     for path in in_paths {

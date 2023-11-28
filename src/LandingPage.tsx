@@ -1,12 +1,12 @@
 import {Box, Flex, Image, Space, Stack, Text} from "@mantine/core";
-import {invoke} from "@tauri-apps/api";
 import {open} from '@tauri-apps/api/dialog';
 import React, {useEffect} from "react";
 import {appWindow, LogicalSize} from "@tauri-apps/api/window";
+import {set_directory} from "./commands.tsx";
 
 const LandingPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateAction<string>> }) => {
     useEffect(() => {
-        appWindow.setTitle("Welcome to XCoder");
+        appWindow.setTitle("Welcome to XCoder").then(null);
         appWindow.setSize(new LogicalSize(600, 450)).then(null);
         appWindow.unmaximize().then(null);
     }, [])
@@ -19,9 +19,7 @@ const LandingPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetSta
         });
         console.log(selected);
         if (!(Array.isArray(selected) || selected === null)) {
-            invoke("set_directory", {directory: selected}).then(() => {
-                setDirectory(selected);
-            }).catch(e => console.error(e));
+            if (await set_directory(selected)) setDirectory(selected);
         }
     }
 
@@ -37,7 +35,7 @@ const LandingPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetSta
             <Space h={"lg"}/>
             <Flex>
                 <Stack m={40}>
-                    <Box bg={"#2b2d30"} p={15} style={{borderRadius: 7, cursor: 'pointer'}}>
+                    <Box bg={"#2b2d30"} p={15} style={{borderRadius: 7, cursor: 'pointer'}} onClick={chooseFolder}>
                         <Image src={"/add.svg"} w={35} m={"auto"}/>
                     </Box>
                     <Text fz={"xs"} c={"#d5dee1"}>New Project</Text>

@@ -2,7 +2,7 @@ import {Box} from "@mantine/core";
 import "./App.css";
 import LandingPage from "./LandingPage";
 import TitleBar from "./Titlebar";
-import MainPage from "./MainPage";
+import MainPage from "./MainPage.tsx";
 import {useEffect, useState} from "react";
 import {invoke} from "@tauri-apps/api";
 

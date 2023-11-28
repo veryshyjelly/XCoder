@@ -66,74 +66,57 @@ impl Store {
     }
 
     pub fn create(directory: String) -> Result<Store, String> {
-        let file = File::create("store.json");
-        match file {
-            Ok(f) => {
-                let v = Store::new(directory);
-                match serde_json::to_writer(f, &v) {
-                    Ok(_) => Ok(v),
-                    Err(e) => Err(e.to_string()),
-                }
-            }
-            Err(err) => Err(err.to_string()),
-        }
+        let file = File::create("store.json")
+            .map_err(|err| format!("error while creating store.json: {}", err))?;
+        let v = Store::new(directory);
+        serde_json::to_writer(file, &v)
+            .map_err(|err| format!("error while writing store.json: {}", err))?;
+        Ok(v)
     }
 
     pub fn read() -> Result<Store, String> {
-        let file = File::open("store.json");
-        match file {
-            Ok(f) => match serde_json::from_reader(f) {
-                Ok(v) => Ok(v),
-                Err(err) => Err(format!("error while parsing store.json: {}", err)),
-            },
-            Err(err) => Err(format!("error while opening store.json: {}", err)),
-        }
+        serde_json::from_reader(
+            File::open("store.json")
+                .map_err(|err| format!("error while opening store.json: {}", err))?,
+        )
+        .map_err(|err| format!("error while parsing store.json: {}", err))
     }
 
     pub fn save(&self) -> Result<(), String> {
-        let file = File::create("store.json");
-        match file {
-            Ok(f) => match serde_json::to_writer(f, &self) {
-                Ok(_) => {
-                    println!("successfully saved store.json");
-                    Ok(())
-                }
-                Err(err) => {
-                    println!("error while writing store.json: {}", err);
-                    Err(format!("error while writing store.json: {}", err))
-                }
-            },
-            Err(err) => {
-                println!("error while opening store.json: {}", err);
-                Err(format!("error while opening store.json: {}", err))
-            }
-        }
+        serde_json::to_writer(
+            File::create("store.json")
+                .map_err(|err| format!("error while saving store.json cannot create: {}", err))?,
+            &self,
+        )
+        .map_err(|err| format!("error while writing store.json: {}", err))
     }
 
     pub fn filter_problems(&mut self) -> Result<(), String> {
-        if self.problems_list.is_none() {
-            return Ok(());
+        match self.problems_list.as_ref() {
+            Some(problems) => {
+                let mut filtered_problems = problems.clone();
+                if !self.show_solved {
+                    filtered_problems = filtered_problems
+                        .into_iter()
+                        .filter(|x| !self.solved_problems.as_ref().unwrap().contains(x))
+                        .collect();
+                }
+
+                filtered_problems = filtered_problems
+                    .into_iter()
+                    .filter(|x| {
+                        x.contest_type.eq(&self.contest_type)
+                            && self.problem_types.contains(&x.problem_id)
+                    })
+                    .collect();
+
+                self.filtered_problems = Some(filtered_problems);
+                self.index = 0;
+
+                Ok(())
+            }
+            None => Ok(()),
         }
-
-        let mut filtered_problems = self.problems_list.clone().unwrap();
-        if !self.show_solved {
-            filtered_problems = filtered_problems
-                .into_iter()
-                .filter(|x| !self.solved_problems.as_ref().unwrap().contains(x))
-                .collect();
-        }
-
-        filtered_problems = filtered_problems
-            .into_iter()
-            .filter(|x| {
-                x.contest_type.eq(&self.contest_type) && self.problem_types.contains(&x.problem_id)
-            })
-            .collect();
-
-        self.filtered_problems = Some(filtered_problems);
-        self.index = 0;
-
-        Ok(())
     }
 
     pub fn get_problem(&self) -> Result<Problem, String> {

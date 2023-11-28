@@ -73,7 +73,9 @@ pub struct FullProblem {
 
 impl PartialEq<Self> for BareProblem {
     fn eq(&self, other: &Self) -> bool {
-        self.contest_type == other.contest_type && self.contest_id == other.contest_id && self.problem_id == other.problem_id
+        self.contest_type == other.contest_type
+            && self.contest_id == other.contest_id
+            && self.problem_id == other.problem_id
     }
 }
 
@@ -129,63 +131,59 @@ impl BareProblem {
     }
 
     pub async fn scrape(&self) -> Result<FullProblem, String> {
-        match reqwest::get(format!(
+        let text = reqwest::get(format!(
             "https://atcoder.jp/contests/{}{:03}/tasks/{}{:03}_{}",
             self.contest_type, self.contest_id, self.contest_type, self.contest_id, self.problem_id
         ))
         .await
-        {
-            Ok(resp) => match resp.text().await {
-                Ok(text) => {
-                    let document = Html::parse_document(&text);
-                    let description_selector = Selector::parse(".lang-en").unwrap();
-                    let description = document.select(&description_selector).next().unwrap();
-                    let title = document
-                        .select(&Selector::parse(".h2").unwrap())
-                        .next()
-                        .unwrap()
-                        .text()
-                        .collect::<Vec<&str>>()
-                        .join("\n");
-                    let limits_text = document
-                        .select(&Selector::parse(".row > div:nth-child(2) > p").unwrap())
-                        .next()
-                        .unwrap()
-                        .text()
-                        .collect::<Vec<&str>>()
-                        .join("\n");
-                    let limits = limits_text.split("/");
-                    let time_limit: u32 = limits
-                        .clone()
-                        .nth(0)
-                        .unwrap()
-                        .split(" ")
-                        .nth(2)
-                        .unwrap()
-                        .parse()
-                        .unwrap();
-                    let memory_limit: u32 = limits
-                        .clone()
-                        .nth(1)
-                        .unwrap()
-                        .split(" ")
-                        .nth(3)
-                        .unwrap()
-                        .parse()
-                        .unwrap();
+        .map_err(|err| format!("error while getting problem response: {}", err))?
+        .text()
+        .await
+        .map_err(|err| format!("error while getting problem text: {}", err))?;
+        let document = Html::parse_document(&text);
+        let description_selector = Selector::parse(".lang-en").unwrap();
+        let description = document.select(&description_selector).next().unwrap();
+        let title = document
+            .select(&Selector::parse(".h2").unwrap())
+            .next()
+            .unwrap()
+            .text()
+            .collect::<Vec<&str>>()
+            .join("\n");
+        let limits_text = document
+            .select(&Selector::parse(".row > div:nth-child(2) > p").unwrap())
+            .next()
+            .unwrap()
+            .text()
+            .collect::<Vec<&str>>()
+            .join("\n");
+        let limits = limits_text.split("/");
+        let time_limit: u32 = limits
+            .clone()
+            .nth(0)
+            .unwrap()
+            .split(" ")
+            .nth(2)
+            .unwrap()
+            .parse()
+            .unwrap();
+        let memory_limit: u32 = limits
+            .clone()
+            .nth(1)
+            .unwrap()
+            .split(" ")
+            .nth(3)
+            .unwrap()
+            .parse()
+            .unwrap();
 
-                    Ok(FullProblem::new(
-                        self,
-                        title,
-                        description.inner_html(),
-                        time_limit,
-                        memory_limit,
-                    ))
-                }
-                Err(err) => Err(format!("error while getting problem text: {}", err)),
-            },
-            Err(err) => Err(format!("error while getting problem response: {}", err)),
-        }
+        Ok(FullProblem::new(
+            self,
+            title,
+            description.inner_html(),
+            time_limit,
+            memory_limit,
+        ))
     }
 }
 
@@ -194,115 +192,84 @@ pub async fn get_problems_list() -> Result<Vec<BareProblem>, String> {
         return Err("problems list does not exist".into());
     }
 
-    let file = File::open("problems.csv");
-    match file {
-        Ok(f) => {
-            let mut problem_set = vec![];
-            let mut rdr = csv::Reader::from_reader(f);
+    let file = File::open("problems.csv")
+        .map_err(|err| format!("error while opening problems.csv: {}", err))?;
+    let mut problem_set = vec![];
+    let mut rdr = csv::Reader::from_reader(file);
 
-            for r in rdr.records() {
-                if let Ok(record) = r {
-                    let (ct, cid, pid, link) =
-                        (record.get(0), record.get(1), record.get(2), record.get(3));
-                    if ct.is_none() || cid.is_none() || pid.is_none() || link.is_none() {
-                        return Err("error while getting problem".into());
-                    }
-                    if let Ok(contest_id) = cid.unwrap().parse::<u16>() {
-                        if let Ok(problem_id) = ProblemId::from_str(pid.unwrap()) {
-                            let contest_type = ContestType::from_str(ct.unwrap())?;
-                            let test_cases_link = link.unwrap().into();
-                            let problem = BareProblem::new(
-                                contest_type,
-                                contest_id,
-                                problem_id,
-                                test_cases_link,
-                            );
-                            problem_set.push(problem);
-                        } else {
-                            return Err(format!(
-                                "error while parsing problem_id: {} {}",
-                                contest_id,
-                                pid.unwrap()
-                            ));
-                        }
-                    } else {
-                        return Err("error while parsing contest_id".into());
-                    }
-                };
+    for r in rdr.records() {
+        if let Ok(record) = r {
+            let (ct, cid, pid, link) = (record.get(0), record.get(1), record.get(2), record.get(3));
+            if ct.is_none() || cid.is_none() || pid.is_none() || link.is_none() {
+                return Err("error while getting problem".into());
             }
-
-            Ok(problem_set)
-        }
-        Err(err) => {
-            return Err(err.to_string());
-        }
+            let contest_id = cid
+                .unwrap()
+                .parse::<u16>()
+                .map_err(|err| format!("error while parsing contest_id: {}", err))?;
+            let problem_id = ProblemId::from_str(pid.unwrap()).map_err(|err| {
+                format!(
+                    "error while parsing problem_id: {} contest_id: {}",
+                    err, contest_id
+                )
+            })?;
+            let contest_type = ContestType::from_str(ct.unwrap())?;
+            let test_cases_link = link.unwrap().into();
+            let problem = BareProblem::new(contest_type, contest_id, problem_id, test_cases_link);
+            problem_set.push(problem);
+        };
     }
+
+    Ok(problem_set)
 }
 
 pub fn get_solved_problems() -> Result<Vec<BareProblem>, String> {
     if !Path::new("solved_problems.csv").exists() {
-        let file = File::create("solved_problems.csv");
-        return match file {
-            Ok(f) => {
-                let mut wtr = csv::Writer::from_writer(f);
-                match wtr.write_record(["contest_type", "contest_id", "problem_id"]) {
-                    Ok(()) => Ok(vec![]),
-                    Err(err) => Err(format!("error while writing csv record: {}", err)),
-                }
+        let file = File::create("solved_problems.csv")
+            .map_err(|err| format!("error while creating solved_problems.csv: {}", err))?;
+        let mut wtr = csv::Writer::from_writer(file);
+        wtr.write_record(["contest_type", "contest_id", "problem_id"])
+            .map_err(|err| format!("error while writing csv record: {}", err))?;
+        return Ok(vec![]);
+    }
+
+    let file = File::open("solved_problems.csv")
+        .map_err(|err| format!("error while opening solved_problems.csv: {}", err))?;
+    let mut solved_problems = vec![];
+
+    let mut rdr = csv::Reader::from_reader(file);
+
+    for r in rdr.records() {
+        if let Ok(record) = r {
+            let (ct, cid, pid) = (record.get(0), record.get(1), record.get(2));
+
+            if ct.is_none() || cid.is_none() || pid.is_none() {
+                return Err("error while getting problem".into());
             }
-            Err(err) => Err(format!("error while creating solved_problems.csv: {}", err)),
+
+            if let Ok(contest_id) = cid.unwrap().parse::<u16>() {
+                let contest_type = ContestType::from_str(ct.unwrap())?;
+                let problem_id = ProblemId::from_str(pid.unwrap())?;
+                let problem = BareProblem::new(contest_type, contest_id, problem_id, "".into());
+                solved_problems.push(problem);
+            } else {
+                return Err("error while parsing contest_id".into());
+            }
         };
     }
 
-    let file = File::open("solved_problems.csv");
-    return match file {
-        Ok(f) => {
-            let mut solved_problems = vec![];
-
-            let mut rdr = csv::Reader::from_reader(f);
-
-            for r in rdr.records() {
-                if let Ok(record) = r {
-                    let (ct, cid, pid) = (record.get(0), record.get(1), record.get(2));
-
-                    if ct.is_none() || cid.is_none() || pid.is_none() {
-                        return Err("error while getting problem".into());
-                    }
-
-                    if let Ok(contest_id) = cid.unwrap().parse::<u16>() {
-                        let contest_type = ContestType::from_str(ct.unwrap())?;
-                        let problem_id = ProblemId::from_str(pid.unwrap())?;
-                        let problem =
-                            BareProblem::new(contest_type, contest_id, problem_id, "".into());
-                        solved_problems.push(problem);
-                    } else {
-                        return Err("error while parsing contest_id".into());
-                    }
-                };
-            }
-
-            Ok(solved_problems)
-        }
-        Err(err) => Err(format!("error while opening solved_problems.csv: {}", err)),
-    };
+    Ok(solved_problems)
 }
 
 pub fn insert_solved_problem(problem: BareProblem) -> Result<(), String> {
-    let file = File::open("solved_problems.csv");
-    match file {
-        Ok(f) => {
-            let mut wtr = csv::Writer::from_writer(f);
-            match wtr.write_record([
-                problem.contest_type.to_string(),
-                problem.contest_id.to_string(),
-                problem.problem_id.to_string(),
-            ]) {
-                Ok(()) => Ok(()),
-                Err(err) => Err(format!("error writing to solved_problems.csv: {}", err)),
-            }
-        }
-        Err(err) => {
-            return Err(format!("error while opening solved_problems.csv: {}", err));
-        }
-    }
+    let file = File::open("solved_problems.csv")
+        .map_err(|err| format!("error while opening solved_problems.csv: {}", err))?;
+    let mut wtr = csv::Writer::from_writer(file);
+    wtr.write_record([
+        problem.contest_type.to_string(),
+        problem.contest_id.to_string(),
+        problem.problem_id.to_string(),
+    ])
+    .map_err(|err| format!("error writing to solved_problems.csv: {}", err))?;
+    Ok(())
 }
