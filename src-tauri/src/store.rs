@@ -16,11 +16,11 @@ pub struct Store {
     pub directory: String,
     pub show_solved: bool,
     #[serde(skip)]
-    pub problems_list: Option<Vec<Problem>>,
+    pub problems_list: Option<Vec<BareProblem>>,
     #[serde(skip)]
-    pub filtered_problems: Option<Vec<Problem>>,
+    pub filtered_problems: Option<Vec<BareProblem>>,
     #[serde(skip)]
-    pub solved_problems: Option<Vec<Problem>>,
+    pub solved_problems: Option<Vec<BareProblem>>,
     #[serde(skip)]
     pub index: usize,
 }
@@ -139,25 +139,31 @@ impl Store {
     pub fn get_problem(&self) -> Result<Problem, String> {
         if let Some(problem) = self.filtered_problems.as_ref().unwrap().get(self.index) {
             let pr = problem.clone();
-            Ok(pr)
+            Ok(Problem::Bare(pr))
         } else {
             Err("index out of range".into())
         }
     }
 
     pub fn create_file(&self) -> Result<(), String> {
-        let mut file_path = PathBuf::from(format!(
-            "{}/{}{}_{}/{}",
-            self.directory,
-            self.get_problem().unwrap().contest_type,
-            self.get_problem().unwrap().contest_id,
-            self.get_problem().unwrap().problem_id,
-            self.get_problem().unwrap().problem_id
-        ));
-        file_path.set_extension(self.language.extension());
-        match File::create(file_path) {
-            Ok(_) => Ok(()),
-            Err(err) => Err(format!("error while creating file: {}", err)),
+        let problem = self.get_problem()?;
+        match problem {
+            Problem::Bare(problem) => {
+                let mut file_path = PathBuf::from(format!(
+                    "{}/{}{}_{}/{}",
+                    self.directory,
+                    problem.contest_type,
+                    problem.contest_id,
+                    problem.problem_id,
+                    problem.problem_id
+                ));
+                file_path.set_extension(self.language.extension());
+                match File::create(file_path) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(format!("error while creating file: {}", err)),
+                }
+            }
+            _ => Err("get problem shouldn't return anything else".into()),
         }
     }
 }

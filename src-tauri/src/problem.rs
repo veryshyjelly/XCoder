@@ -6,6 +6,7 @@ use std::path::Path;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 
+use crate::problem::Problem::Bare;
 use crate::store::ContestType;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone)]
@@ -44,48 +45,90 @@ impl ProblemId {
     }
 }
 
-#[derive(Serialize, Clone)]
-pub struct Problem {
+#[derive(Clone)]
+pub enum Problem {
+    Bare(BareProblem),
+    Full(FullProblem),
+}
+
+#[derive(Clone)]
+pub struct BareProblem {
     pub contest_type: ContestType,
     pub contest_id: u16,
     pub problem_id: ProblemId,
-    pub title: Option<String>,
-    pub description: Option<String>,
-    pub time_limit: Option<u32>,
-    pub memory_limit: Option<u32>,
     pub test_cases_link: String,
 }
 
-impl PartialEq<Self> for Problem {
+#[derive(Serialize, Clone)]
+pub struct FullProblem {
+    pub contest_type: ContestType,
+    pub contest_id: u16,
+    pub problem_id: ProblemId,
+    pub title: String,
+    pub description: String,
+    pub time_limit: u32,
+    pub memory_limit: u32,
+    pub test_cases_link: String,
+}
+
+impl PartialEq<Self> for BareProblem {
     fn eq(&self, other: &Self) -> bool {
-        self.contest_type.eq(&other.contest_type)
-            && self.contest_id.eq(&other.contest_id)
-            && self.problem_id.eq(&other.problem_id)
+        self.contest_type == other.contest_type && self.contest_id == other.contest_id && self.problem_id == other.problem_id
     }
 }
 
-impl Eq for Problem {}
+impl Eq for BareProblem {}
 
 impl Problem {
+    pub async fn scrape(&mut self) -> Result<(), String> {
+        match self {
+            Bare(bare_problem) => {
+                let full_problem = bare_problem.scrape().await?;
+                *self = Problem::Full(full_problem);
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+impl FullProblem {
+    pub fn new(
+        bare_problem: &BareProblem,
+        title: String,
+        description: String,
+        time_limit: u32,
+        memory_limit: u32,
+    ) -> FullProblem {
+        FullProblem {
+            contest_type: bare_problem.contest_type.clone(),
+            contest_id: bare_problem.contest_id,
+            problem_id: bare_problem.problem_id.clone(),
+            title,
+            description,
+            time_limit,
+            memory_limit,
+            test_cases_link: bare_problem.test_cases_link.clone(),
+        }
+    }
+}
+
+impl BareProblem {
     pub fn new(
         contest_type: ContestType,
         contest_id: u16,
         problem_id: ProblemId,
         test_cases_link: String,
-    ) -> Problem {
-        Problem {
+    ) -> BareProblem {
+        BareProblem {
             contest_type,
             contest_id,
             problem_id,
-            title: None,
-            description: None,
-            time_limit: None,
-            memory_limit: None,
             test_cases_link,
         }
     }
 
-    pub async fn scrape(&mut self) -> Result<(), String> {
+    pub async fn scrape(&self) -> Result<FullProblem, String> {
         match reqwest::get(format!(
             "https://atcoder.jp/contests/{}{:03}/tasks/{}{:03}_{}",
             self.contest_type, self.contest_id, self.contest_type, self.contest_id, self.problem_id
@@ -131,11 +174,13 @@ impl Problem {
                         .parse()
                         .unwrap();
 
-                    self.description = Some(description.html());
-                    self.title = Some(title.split("Editorial").next().unwrap().trim().into());
-                    self.time_limit = Some(time_limit);
-                    self.memory_limit = Some(memory_limit);
-                    Ok(())
+                    Ok(FullProblem::new(
+                        self,
+                        title,
+                        description.inner_html(),
+                        time_limit,
+                        memory_limit,
+                    ))
                 }
                 Err(err) => Err(format!("error while getting problem text: {}", err)),
             },
@@ -144,7 +189,7 @@ impl Problem {
     }
 }
 
-pub async fn get_problems_list() -> Result<Vec<Problem>, String> {
+pub async fn get_problems_list() -> Result<Vec<BareProblem>, String> {
     if !Path::new("problems.csv").exists() {
         return Err("problems list does not exist".into());
     }
@@ -166,8 +211,12 @@ pub async fn get_problems_list() -> Result<Vec<Problem>, String> {
                         if let Ok(problem_id) = ProblemId::from_str(pid.unwrap()) {
                             let contest_type = ContestType::from_str(ct.unwrap())?;
                             let test_cases_link = link.unwrap().into();
-                            let problem =
-                                Problem::new(contest_type, contest_id, problem_id, test_cases_link);
+                            let problem = BareProblem::new(
+                                contest_type,
+                                contest_id,
+                                problem_id,
+                                test_cases_link,
+                            );
                             problem_set.push(problem);
                         } else {
                             return Err(format!(
@@ -190,7 +239,7 @@ pub async fn get_problems_list() -> Result<Vec<Problem>, String> {
     }
 }
 
-pub fn get_solved_problems() -> Result<Vec<Problem>, String> {
+pub fn get_solved_problems() -> Result<Vec<BareProblem>, String> {
     if !Path::new("solved_problems.csv").exists() {
         let file = File::create("solved_problems.csv");
         return match file {
@@ -223,7 +272,8 @@ pub fn get_solved_problems() -> Result<Vec<Problem>, String> {
                     if let Ok(contest_id) = cid.unwrap().parse::<u16>() {
                         let contest_type = ContestType::from_str(ct.unwrap())?;
                         let problem_id = ProblemId::from_str(pid.unwrap())?;
-                        let problem = Problem::new(contest_type, contest_id, problem_id, "".into());
+                        let problem =
+                            BareProblem::new(contest_type, contest_id, problem_id, "".into());
                         solved_problems.push(problem);
                     } else {
                         return Err("error while parsing contest_id".into());
@@ -237,7 +287,7 @@ pub fn get_solved_problems() -> Result<Vec<Problem>, String> {
     };
 }
 
-pub fn insert_solved_problem(problem: Problem) -> Result<(), String> {
+pub fn insert_solved_problem(problem: BareProblem) -> Result<(), String> {
     let file = File::open("solved_problems.csv");
     match file {
         Ok(f) => {

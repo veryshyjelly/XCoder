@@ -22,7 +22,7 @@ pub struct Verdict {
     memory: Option<u64>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
 pub enum JudgeStatus {
     CE,
     MLE,
@@ -75,14 +75,14 @@ impl Verdict {
 }
 
 pub struct Judge {
-    problem: Problem,
+    problem: FullProblem,
     directory: String,
     language: Language,
     binary_path: Option<PathBuf>,
 }
 
 impl Judge {
-    fn new(problem: Problem, directory: String, language: Language) -> Judge {
+    fn new(problem: FullProblem, directory: String, language: Language) -> Judge {
         Judge {
             problem,
             directory,
@@ -226,7 +226,7 @@ impl Judge {
 }
 
 pub async fn submit(
-    problem: Problem,
+    problem: FullProblem,
     directory: String,
     language: Language,
 ) -> Result<Vec<Verdict>, String> {
@@ -267,11 +267,15 @@ pub async fn submit(
 
     let verdicts = judge.judge_by_filenames(file_names)?;
 
+    if verdicts.iter().all(|x| x.status.as_ref().unwrap_or(&JudgeStatus::CE).eq(&JudgeStatus::AC)) {
+        insert_solved_problem(BareProblem::new(problem.contest_type, problem.contest_id, problem.problem_id, "".into()))?;
+    }
+
     Ok(verdicts)
 }
 
 pub async fn run(
-    problem: Problem,
+    problem: FullProblem,
     directory: String,
     language: Language,
 ) -> Result<Vec<Verdict>, String> {

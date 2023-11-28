@@ -2,7 +2,7 @@ use tauri::api::process::{Command, CommandEvent};
 
 use crate::judge;
 use crate::judge::Verdict;
-use crate::problem::{get_problems_list, get_solved_problems, Problem, ProblemId};
+use crate::problem::{get_problems_list, get_solved_problems, FullProblem, Problem, ProblemId};
 use crate::store::{ContestType, Language, StoreState};
 
 #[tauri::command]
@@ -72,9 +72,13 @@ pub fn previous(store: tauri::State<'_, StoreState>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn get_problem(store: tauri::State<'_, StoreState>) -> Result<Problem, String> {
+pub async fn get_problem(store: tauri::State<'_, StoreState>) -> Result<FullProblem, String> {
     if store.0.lock().unwrap().solved_problems.is_none() {
-        store.0.lock().unwrap().solved_problems = Some(get_solved_problems()?);
+        store
+            .0
+            .lock()
+            .unwrap()
+            .solved_problems = Some(get_solved_problems()?);
     }
 
     if store.0.lock().unwrap().problems_list.is_none() {
@@ -84,7 +88,11 @@ pub async fn get_problem(store: tauri::State<'_, StoreState>) -> Result<Problem,
 
     let mut problem = store.0.lock().unwrap().get_problem()?;
     problem.scrape().await?;
-    Ok(problem)
+
+    match problem {
+        Problem::Full(full_problem) => Ok(full_problem),
+        _ => Err("error while getting full problem".into()),
+    }
 }
 
 #[tauri::command]
@@ -113,7 +121,10 @@ pub async fn run(store: tauri::State<'_, StoreState>) -> Result<Vec<Verdict>, St
     let directory = store.0.lock().unwrap().directory.clone();
     let language = store.0.lock().unwrap().language.clone();
     problem.scrape().await?;
-    judge::run(problem, directory, language).await
+    match problem {
+        Problem::Full(problem) => judge::run(problem, directory, language).await,
+        _ => Err("error while getting full problem".into())
+    }
 }
 
 #[tauri::command]
@@ -122,7 +133,10 @@ pub async fn submit(store: tauri::State<'_, StoreState>) -> Result<Vec<Verdict>,
     let directory = store.0.lock().unwrap().directory.clone();
     let language = store.0.lock().unwrap().language.clone();
     problem.scrape().await?;
-    judge::submit(problem, directory, language).await
+    match problem {
+        Problem::Full(problem) => judge::submit(problem, directory, language).await,
+        _ => Err("error while getting full problem".into())
+    }
 }
 
 #[tauri::command]
