@@ -3,12 +3,14 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./styles.css";
 import '@mantine/core/styles.css'
-import { MantineProvider } from "@mantine/core";
+import {MantineProvider} from "@mantine/core";
+import {Notifications} from "@mantine/notifications";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <MantineProvider>
-      <App />
-    </MantineProvider>
-  </React.StrictMode>,
+    <React.StrictMode>
+        <MantineProvider>
+            <Notifications limit={5} pos={"absolute"} className={"bottom-5 left-3"} w={"auto"}/>
+            <App/>
+        </MantineProvider>
+    </React.StrictMode>,
 );

@@ -1,6 +1,6 @@
 import {invoke} from '@tauri-apps/api/tauri'
 import {notifications} from '@mantine/notifications'
-import {IconX} from "@tabler/icons-react";
+import {IconCheck, IconX} from "@tabler/icons-react";
 
 export const set_directory = async (directory: string) => {
     try {
@@ -14,7 +14,6 @@ export const set_directory = async (directory: string) => {
             message: "The specified directory was not found",
             icon: <IconX size="1.1rem"/>,
             color: "red",
-            autoClose: 1000,
         })
         return false;
     }
@@ -30,7 +29,6 @@ export const get_directory = async () => {
             message: "Cannot get the directory",
             icon: <IconX size="1.1rem"/>,
             color: "red",
-            autoClose: 1000,
         })
         return "";
     }
@@ -39,6 +37,12 @@ export const get_directory = async () => {
 export const set_contest_type = async (contest_type: string) => {
     try {
         await invoke("set_contest_type", {contestType: contest_type});
+        notifications.show({
+            id: "contest_set",
+            message: "contest type set to " + contest_type,
+            icon: <IconCheck size="1.1rem"/>,
+            color: "teal",
+        });
         return true;
     } catch (e) {
         console.error(e);
@@ -47,15 +51,35 @@ export const set_contest_type = async (contest_type: string) => {
             message: e as string,
             icon: <IconX size="1.1rem"/>,
             color: "red",
-            autoClose: 1000,
         })
         return false;
+    }
+}
+
+export const get_contest_type = async () => {
+    try {
+        return await invoke("get_contest_type") as string;
+    } catch (e) {
+        console.error(e);
+        notifications.show({
+            id: "cannot_get_contest_type",
+            message: e as string,
+            icon: <IconX size="1.1rem"/>,
+            color: "red",
+        })
+        return ""
     }
 }
 
 export const set_problem_type = async (problem_types: string[]) => {
     try {
         await invoke("set_problem_type", {problemTypes: problem_types});
+        notifications.show({
+            id: "problem_set",
+            message: "problem types set to " + problem_types.join(", "),
+            icon: <IconCheck size="1.1rem"/>,
+            color: "teal",
+        });
         return true;
     } catch (e) {
         console.error(e);
@@ -64,15 +88,35 @@ export const set_problem_type = async (problem_types: string[]) => {
             message: e as string,
             icon: <IconX size="1.1rem"/>,
             color: "red",
-            autoClose: 1000,
         })
         return false;
+    }
+}
+
+export const get_problem_type = async () => {
+    try {
+        return await invoke("get_problem_type") as string[];
+    } catch (e) {
+        console.error(e);
+        notifications.show({
+            id: "cannot_get_problem_type",
+            message: e as string,
+            icon: <IconX size="1.1rem"/>,
+            color: "red",
+        })
+        return []
     }
 }
 
 export const set_language = async (language: string) => {
     try {
         await invoke("set_language", {language: language});
+        notifications.show({
+            id: "language_set",
+            message: "language set to " + language,
+            icon: <IconCheck size="1.1rem"/>,
+            color: "teal",
+        });
         return true;
     } catch (e) {
         console.error(e);
@@ -81,9 +125,23 @@ export const set_language = async (language: string) => {
             message: e as string,
             icon: <IconX size="1.1rem"/>,
             color: "red",
-            autoClose: 1000,
         });
         return false;
+    }
+}
+
+export const get_language = async () => {
+    try {
+        return await invoke("get_language") as string;
+    } catch (e) {
+        console.error(e);
+        notifications.show({
+            id: "cannot_get_language",
+            message: e as string,
+            icon: <IconX size="1.1rem"/>,
+            color: "red",
+        });
+        return "";
     }
 }
 
@@ -98,7 +156,6 @@ export const set_show_solved = async (show_solved: boolean) => {
             message: e as string,
             icon: <IconX size="1.1rem"/>,
             color: "red",
-            autoClose: 1000,
         });
         return false;
     }
@@ -115,7 +172,6 @@ export const next = async () => {
             message: e as string,
             icon: <IconX size="1.1rem"/>,
             color: "red",
-            autoClose: 1000,
         });
         return false;
     }
@@ -132,7 +188,6 @@ export const previous = async () => {
             message: e as string,
             icon: <IconX size="1.1rem"/>,
             color: "red",
-            autoClose: 1000,
         });
         return false;
     }
@@ -157,7 +212,6 @@ export const get_problem = async () => {
             message: e as string,
             icon: <IconX size="1.1rem"/>,
             color: "red",
-            autoClose: 1000,
         });
         return null;
     }
@@ -174,7 +228,6 @@ export const update_problems_list = async () => {
             message: e as string,
             icon: <IconX size="1.1rem"/>,
             color: "red",
-            autoClose: 1000,
         });
         return false;
     }
@@ -197,7 +250,6 @@ export const run = async () => {
             message: e as string,
             icon: <IconX size="1.1rem"/>,
             color: "red",
-            autoClose: 1000,
         });
         return null;
     }
@@ -220,7 +272,6 @@ export const submit = async () => {
             message: e as string,
             icon: <IconX size="1.1rem"/>,
             color: "red",
-            autoClose: 1000,
         });
         return null;
     }
@@ -229,6 +280,12 @@ export const submit = async () => {
 export const create_file = async () => {
     try {
         await invoke("create_file");
+        notifications.show({
+            id: "file_created",
+            message: "file created",
+            icon: <IconCheck size="1.1rem"/>,
+            color: "teal",
+        });
         return true
     } catch (e) {
         console.error(e);
@@ -237,7 +294,6 @@ export const create_file = async () => {
             message: e as string,
             icon: <IconX size="1.1rem"/>,
             color: "red",
-            autoClose: 1000,
         });
         return false;
     }
@@ -254,7 +310,6 @@ export const save_state = async () => {
             message: e as string,
             icon: <IconX size="1.1rem"/>,
             color: "red",
-            autoClose: 1000,
         });
         return false;
     }

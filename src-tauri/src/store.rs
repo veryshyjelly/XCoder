@@ -1,7 +1,8 @@
 use std::fmt;
-use std::fmt::Formatter;
+use std::fmt::{Display, Formatter};
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
@@ -133,18 +134,19 @@ impl Store {
         match problem {
             Problem::Bare(problem) => {
                 let mut file_path = PathBuf::from(format!(
-                    "{}/{}{}_{}/{}",
+                    "{}/{}{}_{}",
                     self.directory,
-                    problem.contest_type,
+                    problem.contest_type.to_string().to_lowercase(),
                     problem.contest_id,
                     problem.problem_id,
-                    problem.problem_id
                 ));
                 file_path.set_extension(self.language.extension());
-                match File::create(file_path) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(format!("error while creating file: {}", err)),
+                if file_path.exists() {
+                    return Ok(());
                 }
+                File::create(file_path)
+                    .map_err(|err| format!("error while creating file: {}", err))?;
+                Ok(())
             }
             _ => Err("get problem shouldn't return anything else".into()),
         }
@@ -177,7 +179,7 @@ impl ContestType {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Debug)]
 pub enum Language {
     C,
     Cpp,
@@ -191,6 +193,12 @@ pub enum Language {
     Haskell,
     Fortran,
     Ocaml,
+}
+
+impl Display for Language {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 impl Language {
@@ -229,20 +237,24 @@ impl Language {
         }
     }
 
-    pub fn compiler(&self) -> String {
+    pub fn compiler(&self) -> Command {
         match self {
-            Language::C => "gcc".into(),
-            Language::Cpp => "g++".into(),
-            Language::Go => "go".into(),
-            Language::Rust => "rustc".into(),
-            Language::Kotlin => "kotlinc".into(),
-            Language::Zig => "zig".into(),
-            Language::Node => "node".into(),
-            Language::Swift => "swift".into(),
-            Language::Dart => "dart".into(),
-            Language::Haskell => "ghc".into(),
-            Language::Fortran => "gfortran".into(),
-            Language::Ocaml => "ocamlc".into(),
+            Language::C => Command::new("gcc"),
+            Language::Cpp => Command::new("g++"),
+            Language::Rust => Command::new("rustc"),
+            Language::Kotlin => Command::new("kotlinc"),
+            Language::Zig => Command::new("zig"),
+            Language::Node => Command::new("node"),
+            Language::Swift => Command::new("swiftc"),
+            Language::Dart => Command::new("dart"),
+            Language::Haskell => Command::new("ghc"),
+            Language::Fortran => Command::new("gfortran"),
+            Language::Ocaml => Command::new("ocamlc"),
+            Language::Go => {
+                let mut cmd = Command::new("go");
+                cmd.arg("build");
+                cmd
+            }
         }
     }
 }

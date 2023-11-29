@@ -7,8 +7,6 @@ import {set_directory} from "./commands.tsx";
 const LandingPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateAction<string>> }) => {
     useEffect(() => {
         appWindow.setTitle("Welcome to XCoder").then(null);
-        appWindow.setSize(new LogicalSize(600, 450)).then(null);
-        appWindow.unmaximize().then(null);
     }, [])
 
     const chooseFolder = async () => {
@@ -19,7 +17,11 @@ const LandingPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetSta
         });
         console.log(selected);
         if (!(Array.isArray(selected) || selected === null)) {
-            if (await set_directory(selected)) setDirectory(selected);
+            let dir = selected.replace(/\\/g, "/")
+            if (await set_directory(dir)) {
+                setDirectory(dir);
+                appWindow.setSize(new LogicalSize(1600, 900));
+            }
         }
     }
 

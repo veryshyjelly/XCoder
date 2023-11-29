@@ -143,13 +143,14 @@ impl BareProblem {
         let document = Html::parse_document(&text);
         let description_selector = Selector::parse(".lang-en").unwrap();
         let description = document.select(&description_selector).next().unwrap();
-        let title = document
+        let mut title = document
             .select(&Selector::parse(".h2").unwrap())
             .next()
             .unwrap()
             .text()
             .collect::<Vec<&str>>()
             .join("\n");
+        title = title.split("Editorial").nth(0).unwrap().trim().to_string();
         let limits_text = document
             .select(&Selector::parse(".row > div:nth-child(2) > p").unwrap())
             .next()

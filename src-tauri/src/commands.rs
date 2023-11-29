@@ -40,6 +40,17 @@ pub fn set_contest_type(
 }
 
 #[tauri::command]
+pub fn get_contest_type(store: tauri::State<'_, StoreState>) -> Result<String, ()> {
+    Ok(store
+        .0
+        .lock()
+        .unwrap()
+        .contest_type
+        .to_string()
+        .to_lowercase())
+}
+
+#[tauri::command]
 pub fn set_problem_type(
     store: tauri::State<'_, StoreState>,
     problem_types: Vec<String>,
@@ -64,10 +75,24 @@ pub fn set_problem_type(
 }
 
 #[tauri::command]
+pub fn get_problem_type(store: tauri::State<'_, StoreState>) -> Result<Vec<String>, ()> {
+    let mut pts = vec![];
+    for pt in store.0.lock().unwrap().problem_types.clone() {
+        pts.push(pt.to_string().to_lowercase());
+    }
+    Ok(pts)
+}
+
+#[tauri::command]
 pub fn set_language(store: tauri::State<'_, StoreState>, language: String) -> Result<(), String> {
     store.0.lock().unwrap().language = Language::from_str(language.as_str())
         .map_err(|err| format!("error while setting language: {}", err))?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_language(store: tauri::State<'_, StoreState>) -> Result<String, ()> {
+    Ok(store.0.lock().unwrap().language.to_string().to_lowercase())
 }
 
 #[tauri::command]
@@ -82,6 +107,11 @@ pub fn set_show_solved(
         .unwrap()
         .filter_problems()
         .map_err(|err| format!("error while filtering problems: {}", err))
+}
+
+#[tauri::command]
+pub fn get_show_solved(store: tauri::State<'_, StoreState>) -> Result<bool, ()> {
+    Ok(store.0.lock().unwrap().show_solved)
 }
 
 #[tauri::command]

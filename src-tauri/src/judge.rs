@@ -100,16 +100,16 @@ impl Judge {
         let binary_path = PathBuf::from(format!(
             "{}/bin/{}{}_{}.exe",
             self.directory,
-            self.problem.contest_type,
+            self.problem.contest_type.to_string().to_lowercase(),
             self.problem.contest_id,
             self.problem.problem_id
         ));
         let mut file_path = PathBuf::from(format!(
             "{}/{}{}_{}",
             self.directory,
-            self.problem.contest_type,
+            self.problem.contest_type.to_string().to_lowercase(),
             self.problem.contest_id,
-            self.problem.problem_id
+            self.problem.problem_id,
         ));
         file_path.set_extension(self.language.extension());
 
@@ -117,11 +117,13 @@ impl Judge {
             return Err(format!("the file {} does not exist", file_path.display()));
         }
 
-        let output = Command::new(self.language.compiler())
+        let output = self
+            .language
+            .compiler()
             .current_dir(&self.directory)
-            .arg(file_path)
             .arg("-o")
             .arg(binary_path.clone())
+            .arg(file_path)
             .creation_flags(0x08000000)
             .output()
             .map_err(|err| format!("error while compiling: {}", err))?;
@@ -308,7 +310,7 @@ pub async fn run(
     for path in in_paths {
         let path = path.unwrap().path();
         let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
-        if !file_name.starts_with("sample") {
+        if !file_name.contains("sample") && !file_name.contains("example") {
             continue;
         }
         file_names_map.insert(file_name, 1);
@@ -316,7 +318,7 @@ pub async fn run(
     for path in out_paths {
         let path = path.unwrap().path();
         let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
-        if !file_name.starts_with("sample") {
+        if !file_name.contains("sample") {
             continue;
         }
         if file_names_map.contains_key(&file_name) {
