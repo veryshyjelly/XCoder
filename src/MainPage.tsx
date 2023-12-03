@@ -1,18 +1,6 @@
 import {appWindow, LogicalSize} from "@tauri-apps/api/window";
 import React, {useEffect, useState} from "react";
-import {
-    Box,
-    Flex,
-    Group,
-    Image,
-    MultiSelect,
-    ScrollArea,
-    SegmentedControl,
-    Select,
-    Stack,
-    Text,
-    Textarea
-} from "@mantine/core";
+import {Box, Flex, Group, Image, MultiSelect, ScrollArea, Select, Stack, Text, Textarea} from "@mantine/core";
 import {
     create_file,
     get_contest_type,
@@ -63,6 +51,17 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
     let [problem_ids, setProblemIds] = useState(PROBLEM_IDS as string[]);
     let [testing, setTesting] = useState(false);
     let [showResult, setShowResult] = useState("description" as string);
+    let [resultDisabled, setResultDisabled] = useState(true);
+    let [caseIndex, setCaseIndex] = useState(0);
+    let [finalVerdict, setFinalVerdict] = useState("Run Code" as string);
+    let [verdicts, setVerdicts] = useState<{
+        input: string,
+        output: string,
+        answer: string,
+        status: string,
+        time: string,
+        memory: number
+    }[]>([]);
 
     const get_html_without_first_p = (html: string) => {
         let document = new DOMParser().parseFromString(html, "text/html");
@@ -73,6 +72,9 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
 
     const main_get_problem = async () => {
         let problem = await get_problem();
+        if (problem === null) return;
+        setShowResult("description");
+        setResultDisabled(true);
         setProblem(problem);
     }
 
@@ -89,16 +91,33 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
     const onSubmit = async () => {
         if (testing) return;
         setTesting(true);
-        await submit();
+        let verdicts = await submit();
         setTesting(false);
+        handleVerdicts(verdicts ?? []);
     }
 
     const onRun = async () => {
         if (testing) return;
         setTesting(true);
         let verdicts = await run();
-        console.log(verdicts);
         setTesting(false);
+        handleVerdicts(verdicts ?? []);
+    }
+
+    const handleVerdicts = (verdicts: {
+        input: string,
+        output: string,
+        answer: string,
+        status: string,
+        time: string,
+        memory: number
+    }[]) => {
+        console.log(verdicts);
+        if (verdicts.length === 0) return;
+        verdicts.every(v => v.status === "AC") ? setFinalVerdict("Accepted") : setFinalVerdict("Wrong Answer");
+        setVerdicts(verdicts);
+        setResultDisabled(false);
+        setShowResult("result");
     }
 
     const onCreate = async () => {
@@ -157,15 +176,40 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
             </Box>
         </Group>
 
-        <Box>
-            <SegmentedControl size={"md"} value={showResult} onChange={setShowResult}
-                              bg={"#2b2d30"}
-                              ml={40}
-                              data={[
-                                  {label: "Description", value: "description"},
-                                  {label: "Result", value: "result"}
-                              ]}/>
-        </Box>
+        <Flex ml={20}>
+            <Box
+                className={"rounded-full px-5 py-1 mx-3 font-mono hover:bg-[#2b2d30] active:italic cursor-pointer select-none"}
+                style={{
+                    backgroundColor: showResult === "description" ? "#282828" : "",
+                    boxShadow: showResult === "description" ? "0 0 0 2px #f85d7e" : "",
+                    transform: showResult === "description" ? "scale(1.05)" : ""
+                }}
+                onClick={() => {
+                    setShowResult("description")
+                }}
+            >
+                <Text fz={22} c={"white"}>
+                    Description
+                </Text>
+            </Box>
+            <Box
+                className={"rounded-full px-5 py-1 mx-3 font-mono hover:bg-[#2b2d30] active:italic cursor-pointer select-none"}
+                style={{
+                    // use some grayish color please
+                    backgroundColor: showResult === "result" ? "#282828" : "",
+                    boxShadow: showResult === "result" ? "0 0 0 2px #5aff97" : "",
+                    transform: showResult === "result" ? "scale(1.05)" : ""
+                }}
+                onClick={() => {
+                    if (resultDisabled) return;
+                    setShowResult("result")
+                }}>
+
+                <Text fz={22} c={"white"}>
+                    Result
+                </Text>
+            </Box>
+        </Flex>
         {/* Description box */}
 
         <Flex h={"82%"}>
@@ -178,19 +222,44 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
             {showResult === "result" &&
                 <Stack c={"white"} w={"80%"} mx={"auto"} px={40}
                        className={"text-2xl h-full border border-gray-700 rounded-md"}>
-                    <Group>
-                        <Select data={[{label: "Case 1 ✔️", value: "1"}, {value: "2", label: "Case 2 ❌"}]} w={120}
-                                mt={50} mx={8} checkIconPosition={"right"} defaultValue={"1"}/>
+                    <Group mt={40}>
+                        <Select onChange={(v) => setCaseIndex(parseInt(v ?? "1") - 1)}
+                                data={
+                                    Array.from(Array(verdicts.length).keys()).map(x => ({
+                                        label: `Case ${x + 1} ` + (verdicts[x]?.status === "AC" ? "✔️" : "❌"),
+                                        value: `${x + 1}`
+                                    }))
+                                } w={120}
+                                mx={8} checkIconPosition={"right"} defaultValue={"1"}/>
+
+                        <Text fz={26} fw={600} ml={200} className={"my-auto tracking-wider font-mono"}
+                              style={{
+                                  color: (finalVerdict === "Accepted") ? "#2cad40" :
+                                      (finalVerdict === "Wrong Answer") ? "red" : "gray"
+                              }}
+                        >
+                            {finalVerdict}
+                        </Text>
 
                     </Group>
-                    <Group mt={50}>
+                    <Group mt={40}>
+                        <Text fz={26} fw={600} ml={50} className={"tracking-wider font-mono"}
+                              style={{
+                                  color: (verdicts[caseIndex]?.status === "AC") ? "#2cad40" :
+                                      (verdicts[caseIndex]?.status === "WA") ? "red" : "gray"
+                              }}
+                        >
+                            {verdicts[caseIndex]?.status}
+                        </Text>
+                    </Group>
+                    <Group>
                         <Box
                             className={`mx-[0.5%] h-[36rem] w-[31%] font-[500] bg-[#282828] 
                         text-3xl border border-gray-600 relative text-center select-none font-mono
                          rounded-md tracking-widest pt-1`}>
                             Input
                             <Textarea
-                                value={"a\nb\nc\nd\ne\nf\ng\nh"}
+                                value={verdicts[caseIndex]?.input}
                                 className={`h-[93%] w-full px-2 top-11 bg-[#3e3e3e]/50 rounded-md absolute`}
                                 variant="unstyled" maxRows={15} autosize/>
                         </Box>
@@ -200,7 +269,7 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
                          rounded-md tracking-widest pt-1`}>
                             Answer
                             <Textarea
-                                value={"a\nb\nc\nd\ne\nf\ng\nh"}
+                                value={verdicts[caseIndex]?.answer}
                                 className={`h-[93%] w-full px-2 top-11 bg-[#3e3e3e]/50 rounded-md absolute`}
                                 variant="unstyled" maxRows={15} autosize/>
                         </Box>
@@ -211,7 +280,7 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
                          rounded-md tracking-widest pt-1`}>
                             Output
                             <Textarea
-                                value={"a\nb\nc\nd\ne\nf\ng\nh"}
+                                value={verdicts[caseIndex]?.output}
                                 className={`h-[93%] w-full px-2 top-11 bg-[#3e3e3e]/50 rounded-md absolute`}
                                 variant="unstyled" maxRows={15} autosize/>
                         </Box>

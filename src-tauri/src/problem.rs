@@ -66,8 +66,8 @@ pub struct FullProblem {
     pub problem_id: ProblemId,
     pub title: String,
     pub description: String,
-    pub time_limit: u32,
-    pub memory_limit: u32,
+    pub time_limit: u64,
+    pub memory_limit: u64,
     pub test_cases_link: String,
 }
 
@@ -99,8 +99,8 @@ impl FullProblem {
         bare_problem: &BareProblem,
         title: String,
         description: String,
-        time_limit: u32,
-        memory_limit: u32,
+        time_limit: u64,
+        memory_limit: u64,
     ) -> FullProblem {
         FullProblem {
             contest_type: bare_problem.contest_type.clone(),
@@ -131,7 +131,7 @@ impl BareProblem {
     }
 
     pub async fn scrape(&self) -> Result<FullProblem, String> {
-        let text = reqwest::get(format!(
+        let mut text = reqwest::get(format!(
             "https://atcoder.jp/contests/{}{:03}/tasks/{}{:03}_{}",
             self.contest_type, self.contest_id, self.contest_type, self.contest_id, self.problem_id
         ))
@@ -140,6 +140,7 @@ impl BareProblem {
         .text()
         .await
         .map_err(|err| format!("error while getting problem text: {}", err))?;
+        text = text.replace("\\leq", "≤");
         let document = Html::parse_document(&text);
         let description_selector = Selector::parse(".lang-en").unwrap();
         let description = document.select(&description_selector).next().unwrap();
@@ -159,7 +160,7 @@ impl BareProblem {
             .collect::<Vec<&str>>()
             .join("\n");
         let limits = limits_text.split("/");
-        let time_limit: u32 = limits
+        let time_limit: u64 = limits
             .clone()
             .nth(0)
             .unwrap()
@@ -168,7 +169,7 @@ impl BareProblem {
             .unwrap()
             .parse()
             .unwrap();
-        let memory_limit: u32 = limits
+        let memory_limit: u64 = limits
             .clone()
             .nth(1)
             .unwrap()

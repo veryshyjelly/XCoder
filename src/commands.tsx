@@ -242,7 +242,7 @@ export const run = async () => {
             status: string,
             time: string,
             memory: number
-        };
+        }[];
     } catch (e) {
         console.error(e);
         notifications.show({
@@ -264,7 +264,7 @@ export const submit = async () => {
             status: string,
             time: string,
             memory: number
-        };
+        }[];
     } catch (e) {
         console.error(e);
         notifications.show({

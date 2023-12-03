@@ -1,10 +1,10 @@
 use std::collections::HashMap;
-use std::io::{Cursor, Write};
+use std::io::Cursor;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::Duration;
-use std::{fs, io};
+use std::time::{Duration, Instant};
+use std::{fs, io, thread};
 
 use serde::{Deserialize, Serialize};
 use zip::ZipArchive;
@@ -18,7 +18,7 @@ pub struct Verdict {
     output: Option<String>,
     answer: String,
     status: Option<JudgeStatus>,
-    time: Option<Duration>,
+    time: Option<f32>,
     memory: Option<u64>,
 }
 
@@ -46,30 +46,36 @@ impl Verdict {
         }
     }
 
-    pub fn exec(&mut self, binary_path: &PathBuf) -> Result<(), String> {
-        let mut sol_process = Command::new(binary_path)
-            .stdin(Stdio::piped())
+    pub fn exec(&mut self, binary_path: PathBuf, input_file: PathBuf) -> Result<(), String> {
+        let now = Instant::now();
+        let sol_process = Command::new("powershell")
+            .args([
+                "/C",
+                format!("type {} | {}", input_file.display(), binary_path.display())
+                    .replace("/", r#"\"#)
+                    .as_str(),
+            ])
             .stdout(Stdio::piped())
-            .creation_flags(0x08000000)
             .spawn()
             .map_err(|err| format!("error while running solution: {}", err))?;
-        sol_process
-            .stdin
-            .take()
-            .unwrap()
-            .write_fmt(format_args!("{}", self.input))
-            .map_err(|err| format!("error while giving input to solution: {}", err))?;
-        let sol_output = String::from_utf8(sol_process.wait_with_output().unwrap().stdout)
-            .map_err(|err| format!("error while getting output from solution: {}", err))?
-            .trim()
-            .to_string();
+
+        let sol_output = String::from_utf8(
+            sol_process
+                .wait_with_output()
+                .map_err(|err| format!("error while getting output from solution: {}", err))?
+                .stdout,
+        )
+        .unwrap()
+        .trim()
+        .to_string();
+        self.time = Some(now.elapsed().as_secs_f32());
         self.output = Some(sol_output);
         if self.answer.eq(self.output.as_ref().unwrap()) {
             self.status = Some(JudgeStatus::AC);
         } else {
             self.status = Some(JudgeStatus::WA);
         }
-        // TODO: check status, time and memory
+        // TODO: check status, and memory
         Ok(())
     }
 }
@@ -191,38 +197,69 @@ impl Judge {
         Ok(())
     }
 
-    pub fn judge_by_filename(&mut self, file_name: String) -> Result<Verdict, String> {
+    pub fn judge_by_filenames(&mut self, file_names: Vec<String>) -> Result<Vec<Verdict>, String> {
         if self.binary_path.is_none() {
             self.compile()?;
         }
-        let input_file = format!(
-            "{}/test_cases/{}{}_{}/in/{}",
-            self.directory,
-            self.problem.contest_type,
-            self.problem.contest_id,
-            self.problem.problem_id,
-            file_name
-        );
-        let output_file = format!(
-            "{}/test_cases/{}{}_{}/out/{}",
-            self.directory,
-            self.problem.contest_type,
-            self.problem.contest_id,
-            self.problem.problem_id,
-            file_name
-        );
-        let mut verdict = Verdict::new(
-            fs::read_to_string(input_file).unwrap(),
-            fs::read_to_string(output_file).unwrap(),
-        );
-        verdict.exec(self.binary_path.as_ref().unwrap())?;
-        Ok(verdict)
-    }
+        let mut verdict_handles: Vec<thread::JoinHandle<Result<Verdict, String>>> = vec![];
+        let binary_path = self.binary_path.as_ref().unwrap().clone();
 
-    pub fn judge_by_filenames(&mut self, file_names: Vec<String>) -> Result<Vec<Verdict>, String> {
-        let mut verdicts = vec![];
+        let directory = self.directory.clone();
+        let contest_type = self.problem.contest_type.clone();
+        let contest_id = self.problem.contest_id.clone();
+        let problem_id = self.problem.problem_id.clone();
+        let time_limit = self.problem.time_limit;
+
         for file_name in file_names {
-            verdicts.push(self.judge_by_filename(file_name)?);
+            let input_file = PathBuf::from(format!(
+                "{}/test_cases/{}{}_{}/in/{}",
+                directory,
+                contest_type,
+                contest_id,
+                problem_id,
+                file_name
+            ));
+            let mut input = fs::read_to_string(&input_file)
+                .map_err(|err| format!("error while reading input file: {}", err))?;
+            let mut output = fs::read_to_string(format!(
+                "{}/test_cases/{}{}_{}/out/{}",
+                directory,
+                contest_type,
+                contest_id,
+                problem_id,
+                file_name
+            ))
+            .map_err(|err| format!("error while reading output file: {}", err))?;
+
+            input = input.trim().replace("\r\n", "\n");
+            output = output.trim().replace("\r\n", "\n");
+            let binary_path = binary_path.clone();
+
+            verdict_handles.push(thread::spawn(move || {
+                let mut tle_verdict = Verdict::new(input.clone(), output.clone());
+                tle_verdict.status = Some(JudgeStatus::TLE);
+
+                let verdict_handle = thread::spawn(move || {
+                    let mut verdict = Verdict::new(input, output);
+                    verdict.exec(binary_path, input_file)?;
+                    Ok(verdict)
+                });
+
+                thread::sleep(Duration::from_secs(time_limit));
+
+                if verdict_handle.is_finished() {
+                    verdict_handle
+                        .join()
+                        .map_err(|err| format!("error occurred while joining handle: {:?}", err))?
+                } else {
+                    Ok(tle_verdict)
+                }
+            }));
+        }
+
+        let mut verdicts = vec![];
+        for handle in verdict_handles {
+            verdicts.push(handle.join().unwrap()?);
         }
         Ok(verdicts)
     }
