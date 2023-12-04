@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::fs::File;
@@ -9,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::problem::Problem::Bare;
 use crate::store::ContestType;
 
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone, Hash)]
 pub enum ProblemId {
     A,
     B,
@@ -51,7 +52,7 @@ pub enum Problem {
     Full(FullProblem),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Hash)]
 pub struct BareProblem {
     pub contest_type: ContestType,
     pub contest_id: u16,
@@ -225,18 +226,18 @@ pub async fn get_problems_list() -> Result<Vec<BareProblem>, String> {
     Ok(problem_set)
 }
 
-pub fn get_solved_problems() -> Result<Vec<BareProblem>, String> {
-    if !Path::new("solved_problems.csv").exists() {
-        let file = File::create("solved_problems.csv")
+pub fn get_solved_problems(directory: String) -> Result<Vec<BareProblem>, String> {
+    if !Path::new(&format!("{}/solved_problems.csv", directory)).exists() {
+        let file = File::create(&format!("{}/solved_problems.csv", directory))
             .map_err(|err| format!("error while creating solved_problems.csv: {}", err))?;
         let mut wtr = csv::Writer::from_writer(file);
         wtr.write_record(["contest_type", "contest_id", "problem_id"])
             .map_err(|err| format!("error while writing csv record: {}", err))?;
         return Ok(vec![]);
     }
-
-    let file = File::open("solved_problems.csv")
+    let file = File::open(format!("{}/solved_problems.csv", directory))
         .map_err(|err| format!("error while opening solved_problems.csv: {}", err))?;
+
     let mut solved_problems = vec![];
 
     let mut rdr = csv::Reader::from_reader(file);
@@ -264,14 +265,26 @@ pub fn get_solved_problems() -> Result<Vec<BareProblem>, String> {
 }
 
 pub fn insert_solved_problem(problem: BareProblem, directory: String) -> Result<(), String> {
-    let file = File::open(format!("{}/solved_problems.csv", directory))
+    let mut recs_map = HashMap::new();
+    get_solved_problems(directory.clone())?.into_iter().for_each(|x| {recs_map.insert(x, true);});
+    recs_map.insert(problem, true);
+
+    let mut wtr = csv::Writer::from_path(format!("{}/solved_problems.csv", directory))
         .map_err(|err| format!("error while opening solved_problems.csv: {}", err))?;
-    let mut wtr = csv::Writer::from_writer(file);
-    wtr.write_record([
-        problem.contest_type.to_string(),
-        problem.contest_id.to_string(),
-        problem.problem_id.to_string(),
-    ])
-    .map_err(|err| format!("error writing to solved_problems.csv: {}", err))?;
+
+    wtr.write_record(["contest_type", "contest_id", "problem_id"])
+        .map_err(|err| format!("error while writing csv record: {}", err))?;
+
+    for (rec, _) in recs_map.iter() {
+        wtr.write_record([
+            rec.contest_type.to_string(),
+            rec.contest_id.to_string(),
+            rec.problem_id.to_string(),
+        ])
+        .map_err(|err| format!("error writing to solved_problems.csv: {}", err))?;
+    }
+
+    wtr.flush()
+        .map_err(|err| format!("error writing to solved_prbolems.csv: {}", err))?;
     Ok(())
 }

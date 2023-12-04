@@ -97,6 +97,7 @@ impl Store {
     }
 
     pub fn filter_problems(&mut self) -> Result<(), String> {
+        self.solved_problems = Some(get_solved_problems(self.directory.clone())?);
         match self.problems_list.as_ref() {
             Some(problems) => {
                 let mut filtered_problems = problems.clone();
@@ -157,7 +158,7 @@ impl Store {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Clone, Hash)]
 pub enum ContestType {
     ABC,
     AGC,

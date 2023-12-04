@@ -132,8 +132,10 @@ pub fn previous(store: tauri::State<'_, StoreState>) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn get_problem(store: tauri::State<'_, StoreState>) -> Result<FullProblem, String> {
+    let directory = store.0.lock().unwrap().directory.clone();
+
     if store.0.lock().unwrap().solved_problems.is_none() {
-        store.0.lock().unwrap().solved_problems = Some(get_solved_problems()?);
+        store.0.lock().unwrap().solved_problems = Some(get_solved_problems(directory)?);
     }
 
     if store.0.lock().unwrap().problems_list.is_none() {
@@ -194,7 +196,11 @@ pub async fn submit(store: tauri::State<'_, StoreState>) -> Result<Vec<Verdict>,
     let language = store.0.lock().unwrap().language.clone();
     problem.scrape().await?;
     match problem {
-        Problem::Full(problem) => judge::submit(problem, directory, language).await,
+        Problem::Full(problem) => {
+            let res = judge::submit(problem, directory, language).await;
+            store.0.lock().unwrap().filter_problems()?;
+            res
+        },
         _ => Err("error while getting full problem".into()),
     }
 }

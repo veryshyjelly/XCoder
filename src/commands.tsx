@@ -145,6 +145,21 @@ export const get_language = async () => {
     }
 }
 
+export const get_show_solved = async () => {
+    try {
+        return await invoke("get_language") as boolean;
+    } catch (e) {
+        console.error(e);
+        notifications.show({
+            id: "cannot_get_show_solved",
+            message: e as string,
+            icon: <IconX size="1.1rem"/>,
+            color: "red",
+        });
+        return false;
+    }
+}
+
 export const set_show_solved = async (show_solved: boolean) => {
     try {
         await invoke("set_show_solved", {showSolved: show_solved});

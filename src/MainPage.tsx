@@ -1,12 +1,13 @@
 import {appWindow, LogicalSize} from "@tauri-apps/api/window";
-import React, {useEffect, useState} from "react";
-import {Box, Flex, Group, Image, MultiSelect, ScrollArea, Select, Stack, Text, Textarea} from "@mantine/core";
+import React, {ChangeEvent, useEffect, useState} from "react";
+import {Box, Flex, Group, Image, MultiSelect, ScrollArea, Select, Stack, Switch, Text, Textarea} from "@mantine/core";
 import {
     create_file,
     get_contest_type,
     get_language,
     get_problem,
     get_problem_type,
+    get_show_solved,
     next,
     previous,
     run,
@@ -14,6 +15,7 @@ import {
     set_directory,
     set_language,
     set_problem_type,
+    set_show_solved,
     submit
 } from "./commands.tsx";
 import parse from "html-react-parser";
@@ -50,6 +52,7 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
     let [contest, setContest] = useState("ABC" as string);
     let [problem_ids, setProblemIds] = useState(PROBLEM_IDS as string[]);
     let [testing, setTesting] = useState(false);
+    let [showSolved, setShowSolved] = useState(false);
     let [showResult, setShowResult] = useState("description" as string);
     let [resultDisabled, setResultDisabled] = useState(true);
     let [caseIndex, setCaseIndex] = useState(0);
@@ -144,12 +147,20 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
         await main_get_problem();
     }
 
+    const onChangeShowSolved = async (e: ChangeEvent<HTMLInputElement>) => {
+        console.log(e.target.checked);
+        let success = await set_show_solved(!e.target.checked);
+        if (success) setShowSolved(!e.target.checked);
+        await main_get_problem();
+    }
+
     useEffect(() => {
         appWindow.setTitle("XCoder");
         get_problem().then(v => setProblem(v));
         get_language().then(v => setLanguage(v));
         get_contest_type().then(v => setContest(v));
         get_problem_type().then(v => setProblemIds(v.map(x => x.toUpperCase())));
+        get_show_solved().then(v => setShowSolved(v));
     }, []);
 
     return (<Stack className={"p-2 h-full"}>
@@ -302,7 +313,12 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
 
             {/* Buttons and Controls */}
             <Stack mx={"auto"}>
-                <Group mx={"auto"} className={"mt-24 text-xl font-medium"}>
+                <Group mx={"auto"} className={"mt-10 text-xl font-medium"}>
+                    <Switch c={"white"} label="hide solved" checked={showSolved} onChange={onChangeShowSolved}
+                        my={'auto'} offLabel="OFF" onLabel="ON " className="select-none font-mono" />
+                </Group>
+
+                <Group mx={"auto"} className={"mt-10 text-xl font-medium"}>
                     <Select c={"white"} label={"Language"} className={"tracking-widest font-mono"} data={Languages}
                             w={110}
                             checkIconPosition={"right"} mb={3} allowDeselect={false} value={language}
@@ -324,6 +340,7 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
                                  checkIconPosition={"right"} mb={3} value={problem_ids} onChange={onChangeProblemIds}/>
                 </Group>
 
+
                 <Group mx={"auto"} className={"mt-auto text-xl font-medium"}>
                     <Box c={"#c6c8cb"} onClick={onRun}
                          className="px-10 py-2 bg-white/30 rounded-lg cursor-pointer select-none
@@ -336,6 +353,7 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
                         {testing ? <IconLoader size={"1.7rem"} className={"mx-auto"}/> : "Submit"}
                     </Box>
                 </Group>
+
             </Stack>
 
         </Flex>

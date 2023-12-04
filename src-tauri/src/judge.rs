@@ -83,7 +83,7 @@ impl Verdict {
                     .read_to_string(&mut sol_output)
                     .unwrap();
 
-                self.output = Some(sol_output);
+                self.output = Some(sol_output.trim().to_string());
                 if self.answer.eq(self.output.as_ref().unwrap()) {
                     self.status = Some(JudgeStatus::AC);
                 } else {
