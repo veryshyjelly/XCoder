@@ -280,7 +280,7 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
                          rounded-md tracking-widest pt-1`}>
                             Output
                             <Textarea
-                                value={verdicts[caseIndex]?.output}
+                                value={verdicts[caseIndex]?.output??""}
                                 className={`h-[93%] w-full px-2 top-11 bg-[#3e3e3e]/50 rounded-md absolute`}
                                 variant="unstyled" maxRows={15} autosize/>
                         </Box>
