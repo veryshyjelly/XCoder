@@ -59,7 +59,8 @@ impl Store {
     }
 
     pub fn read_or_create() -> Result<Store, String> {
-        if Path::new("store.json").exists() {
+        let data_dir = tauri::api::path::data_dir().unwrap();
+        if Path::new(&format!("{}/xcoder_store.json", data_dir.display())).exists() {
             Store::read()
         } else {
             Store::create("".into())
@@ -67,7 +68,8 @@ impl Store {
     }
 
     pub fn create(directory: String) -> Result<Store, String> {
-        let file = File::create("store.json")
+        let data_dir = tauri::api::path::data_dir().unwrap();
+        let file = File::create(&format!("{}/xcoder_store.json", data_dir.display()))
             .map_err(|err| format!("error while creating store.json: {}", err))?;
         let v = Store::new(directory);
         serde_json::to_writer(file, &v)
@@ -76,16 +78,18 @@ impl Store {
     }
 
     pub fn read() -> Result<Store, String> {
+        let data_dir = tauri::api::path::data_dir().unwrap();
         serde_json::from_reader(
-            File::open("store.json")
+            File::open(&format!("{}/xcoder_store.json", data_dir.display()))
                 .map_err(|err| format!("error while opening store.json: {}", err))?,
         )
         .map_err(|err| format!("error while parsing store.json: {}", err))
     }
 
     pub fn save(&self) -> Result<(), String> {
+        let data_dir = tauri::api::path::data_dir().unwrap();
         serde_json::to_writer(
-            File::create("store.json")
+            File::create(&format!("{}/xcoder_store.json", data_dir.display()))
                 .map_err(|err| format!("error while saving store.json cannot create: {}", err))?,
             &self,
         )

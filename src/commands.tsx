@@ -240,7 +240,7 @@ export const run = async () => {
             output: string,
             answer: string,
             status: string,
-            time: string,
+            time: number,
             memory: number
         }[];
     } catch (e) {
@@ -262,7 +262,7 @@ export const submit = async () => {
             output: string,
             answer: string,
             status: string,
-            time: string,
+            time: number,
             memory: number
         }[];
     } catch (e) {

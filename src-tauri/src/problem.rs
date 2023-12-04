@@ -263,8 +263,8 @@ pub fn get_solved_problems() -> Result<Vec<BareProblem>, String> {
     Ok(solved_problems)
 }
 
-pub fn insert_solved_problem(problem: BareProblem) -> Result<(), String> {
-    let file = File::open("solved_problems.csv")
+pub fn insert_solved_problem(problem: BareProblem, directory: String) -> Result<(), String> {
+    let file = File::open(format!("{}/solved_problems.csv", directory))
         .map_err(|err| format!("error while opening solved_problems.csv: {}", err))?;
     let mut wtr = csv::Writer::from_writer(file);
     wtr.write_record([

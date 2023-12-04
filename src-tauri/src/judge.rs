@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Read, Write};
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -53,17 +53,25 @@ impl Verdict {
         input_file: PathBuf,
         timeout: Duration,
     ) -> Result<(), String> {
-        let now = Instant::now();
         let mut sol_process = Command::new("powershell")
-            .args([
-                "/C",
-                format!("type {} | {}", input_file.display(), binary_path.display())
-                    .replace("/", r#"\"#)
-                    .as_str(),
-            ])
+            .args(["-Command", "-"])
+            .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
             .map_err(|err| format!("error while running solution: {}", err))?;
+
+        sol_process
+            .stdin
+            .take()
+            .unwrap()
+            .write_fmt(format_args!(
+                "{}",
+                format!("type {} | {}", input_file.display(), binary_path.display())
+                    .replace("/", r#"\"#)
+                    .as_str()
+            ))
+            .unwrap();
+        let now = Instant::now();
 
         match sol_process.wait_timeout(timeout).unwrap() {
             Some(_) => {
@@ -80,6 +88,9 @@ impl Verdict {
                     self.status = Some(JudgeStatus::AC);
                 } else {
                     self.status = Some(JudgeStatus::WA);
+                }
+                if self.time.as_ref().unwrap() > &(timeout.as_secs_f32() - 2.0) {
+                    self.status = Some(JudgeStatus::TLE);
                 }
             }
             None => {
@@ -219,7 +230,7 @@ impl Judge {
         let contest_type = self.problem.contest_type.clone();
         let contest_id = self.problem.contest_id.clone();
         let problem_id = self.problem.problem_id.clone();
-        let time_limit = Duration::from_secs(self.problem.time_limit);
+        let timeout = Duration::from_secs(self.problem.time_limit + 2);
 
         let mut verdicts: Vec<Verdict> = vec![];
 
@@ -242,7 +253,7 @@ impl Judge {
             let binary_path = binary_path.clone();
 
             let mut verdict = Verdict::new(input, output);
-            verdict.exec(binary_path, input_file, time_limit.clone())?;
+            verdict.exec(binary_path, input_file, timeout.clone())?;
             verdicts.push(verdict);
         }
 
@@ -298,12 +309,15 @@ pub async fn submit(
             .unwrap_or(&JudgeStatus::CE)
             .eq(&JudgeStatus::AC)
     }) {
-        insert_solved_problem(BareProblem::new(
-            problem.contest_type,
-            problem.contest_id,
-            problem.problem_id,
-            "".into(),
-        ))?;
+        insert_solved_problem(
+            BareProblem::new(
+                problem.contest_type,
+                problem.contest_id,
+                problem.problem_id,
+                "".into(),
+            ),
+            directory,
+        )?;
     }
 
     Ok(verdicts)

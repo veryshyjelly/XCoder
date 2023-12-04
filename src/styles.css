@@ -192,4 +192,16 @@ h3 {
     /*font-family: 'JetBrains Mono', monospace;*/
 }
 
+code,kbd,pre,samp {
+    font-family: Menlo,Monaco,Consolas,"Courier New",monospace
+}
+
+code {
+    padding: 2px 4px;
+    font-size: 90%;
+    color: #c7254e;
+    background-color: #f9f2f4;
+    border-radius: 3px
+}
+
 /* end task statement */

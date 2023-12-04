@@ -59,7 +59,7 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
         output: string,
         answer: string,
         status: string,
-        time: string,
+        time: number,
         memory: number
     }[]>([]);
 
@@ -109,7 +109,7 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
         output: string,
         answer: string,
         status: string,
-        time: string,
+        time: number,
         memory: number
     }[]) => {
         console.log(verdicts);
@@ -169,7 +169,8 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
                 <Image src={"/prev.svg"} w={15}/>
             </Box>
             <Text mx={"auto"} my={"auto"} fz={26} fw={500} c={"white"}
-                  className={"select-none tracking-wider cursor-pointer"}>{problem?.title}</Text>
+                  className={"select-none tracking-wider cursor-pointer"} onClick={() => {
+                    open(`https://atcoder.jp/contests/${problem?.contest_type}${problem?.contest_id.toString().padStart(3, "0")}/tasks/${problem?.contest_type.toString().padStart(3, "0")}${problem?.contest_id}_${problem?.problem_id}`)}}>{problem?.title}</Text>
             <Box onClick={onNext}
                  className="px-5 py-2 active:drop-shadow-2xl border border-gray-500 cursor-pointer select-none">
                 <Image src={"/next.svg"} w={15}/>
@@ -216,6 +217,12 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
             {showResult === "description" &&
                 <ScrollArea c={"white"} w={"80%"} mx={"auto"} px={40}
                             className={"text-2xl h-full border border-gray-700 rounded-md"}>
+                                <Group>
+                                    <Text className="font-mono" fz={"xl"} c={"green"} mt={5}>
+                                        Time Limit: {problem?.time_limit} sec </Text>
+                                    <Text className="font-mono" fz={"xl"} c={"blue"} mt={5}>
+                                        Memory Limit: {problem?.memory_limit} MB </Text>
+                                </Group>
                     {parse(get_html_without_first_p(problem?.description ?? "<p></p>"))}
                 </ScrollArea>}
 
@@ -230,7 +237,7 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
                                         value: `${x + 1}`
                                     }))
                                 } w={120}
-                                mx={8} checkIconPosition={"right"} defaultValue={"1"}/>
+                                mx={8} checkIconPosition={"right"} defaultValue={"1"} allowDeselect={false}/>
 
                         <Text fz={26} fw={600} ml={200} className={"my-auto tracking-wider font-mono"}
                               style={{
@@ -251,6 +258,11 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
                         >
                             {verdicts[caseIndex]?.status}
                         </Text>
+                            <Text className="font-mono" fz={"xl"} c={"purple"} mx={20}>
+                                Time Taken: {verdicts[caseIndex]?.time.toFixed(2)} sec </Text>
+                            <Text className="font-mono" fz={"xl"} c={"blue"} mx={20}>
+                                Memory : {verdicts[caseIndex]?.memory??"0"} MB </Text>
+
                     </Group>
                     <Group>
                         <Box
