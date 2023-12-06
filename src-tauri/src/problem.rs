@@ -143,20 +143,30 @@ impl BareProblem {
         .map_err(|err| format!("error while getting problem text: {}", err))?;
         text = text.replace("\\leq", "≤");
         let document = Html::parse_document(&text);
-        let description_selector = Selector::parse(".lang-en").unwrap();
-        let description = document.select(&description_selector).next().unwrap();
-        let mut title = document
-            .select(&Selector::parse(".h2").unwrap())
+        let description_selector = Selector::parse(".lang-en")
+            .map_err(|err| format!("error while parsing description selector: {}", err))?;
+        let description = document
+            .select(&description_selector)
             .next()
-            .unwrap()
+            .ok_or(format!("error while getting description"))?;
+        let mut title = document
+            .select(
+                &Selector::parse(".h2")
+                    .map_err(|err| format!("error while parsing title selector: {}", err))?,
+            )
+            .next()
+            .ok_or(format!("error while getting problem title"))?
             .text()
             .collect::<Vec<&str>>()
             .join("\n");
         title = title.split("Editorial").nth(0).unwrap().trim().to_string();
         let limits_text = document
-            .select(&Selector::parse(".row > div:nth-child(2) > p").unwrap())
+            .select(
+                &Selector::parse(".row > div:nth-child(2) > p")
+                    .map_err(|err| format!("error while parsing limits selector: {}", err))?,
+            )
             .next()
-            .unwrap()
+            .ok_or(format!("error while getting time and memory limit"))?
             .text()
             .collect::<Vec<&str>>()
             .join("\n");
@@ -164,27 +174,27 @@ impl BareProblem {
         let time_limit: u64 = limits
             .clone()
             .nth(0)
-            .unwrap()
+            .ok_or(format!("error while getting time limit"))?
             .split(" ")
             .nth(2)
-            .unwrap()
+            .ok_or(format!("error while getting time limit"))?
             .parse()
-            .unwrap();
+            .map_err(|err| format!("error while parsing time limit: {}", err))?;
         let memory_limit: u64 = limits
             .clone()
             .nth(1)
-            .unwrap()
+            .ok_or(format!("error while getting memory limit"))?
             .split(" ")
             .nth(3)
-            .unwrap()
+            .ok_or(format!("error while getting memory limit"))?
             .parse()
-            .unwrap();
+            .map_err(|err| format!("error while parsing memory limit: {}", err))?;
 
         Ok(FullProblem::new(
             self,
             title,
             description.inner_html(),
-            time_limit,
+            time_limit * 2,
             memory_limit,
         ))
     }
@@ -202,22 +212,31 @@ pub async fn get_problems_list() -> Result<Vec<BareProblem>, String> {
 
     for r in rdr.records() {
         if let Ok(record) = r {
-            let (ct, cid, pid, link) = (record.get(0), record.get(1), record.get(2), record.get(3));
-            if ct.is_none() || cid.is_none() || pid.is_none() || link.is_none() {
-                return Err("error while getting problem".into());
-            }
+            let (ct, cid, pid, link) = (
+                record
+                    .get(0)
+                    .ok_or("error while getting contest type".to_string())?,
+                record
+                    .get(1)
+                    .ok_or("error while getting contest id".to_string())?,
+                record
+                    .get(2)
+                    .ok_or("error while getting problem id".to_string())?,
+                record
+                    .get(3)
+                    .ok_or("error while getting problem link".to_string())?,
+            );
             let contest_id = cid
-                .unwrap()
                 .parse::<u16>()
                 .map_err(|err| format!("error while parsing contest_id: {}", err))?;
-            let problem_id = ProblemId::from_str(pid.unwrap()).map_err(|err| {
+            let problem_id = ProblemId::from_str(pid).map_err(|err| {
                 format!(
                     "error while parsing problem_id: {} contest_id: {}",
                     err, contest_id
                 )
             })?;
-            let contest_type = ContestType::from_str(ct.unwrap())?;
-            let test_cases_link = link.unwrap().into();
+            let contest_type = ContestType::from_str(ct)?;
+            let test_cases_link = link.into();
             let problem = BareProblem::new(contest_type, contest_id, problem_id, test_cases_link);
             problem_set.push(problem);
         };
@@ -266,7 +285,11 @@ pub fn get_solved_problems(directory: String) -> Result<Vec<BareProblem>, String
 
 pub fn insert_solved_problem(problem: BareProblem, directory: String) -> Result<(), String> {
     let mut recs_map = HashMap::new();
-    get_solved_problems(directory.clone())?.into_iter().for_each(|x| {recs_map.insert(x, true);});
+    get_solved_problems(directory.clone())?
+        .into_iter()
+        .for_each(|x| {
+            recs_map.insert(x, true);
+        });
     recs_map.insert(problem, true);
 
     let mut wtr = csv::Writer::from_path(format!("{}/solved_problems.csv", directory))

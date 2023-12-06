@@ -270,7 +270,7 @@ const MainPage = ({setDirectory}: { setDirectory: React.Dispatch<React.SetStateA
                             {verdicts[caseIndex]?.status}
                         </Text>
                             <Text className="font-mono" fz={"xl"} c={"purple"} mx={20}>
-                                Time Taken: {verdicts[caseIndex]?.time.toFixed(2)} sec </Text>
+                                Time Taken: {verdicts[caseIndex]?.time?.toFixed(2)} sec </Text>
                             <Text className="font-mono" fz={"xl"} c={"blue"} mx={20}>
                                 Memory : {verdicts[caseIndex]?.memory??"0"} MB </Text>
 

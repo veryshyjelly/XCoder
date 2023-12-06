@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::io::{Cursor, Read, Write};
+use std::io::{Cursor, Write};
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -51,46 +51,50 @@ impl Verdict {
         &mut self,
         binary_path: PathBuf,
         input_file: PathBuf,
+        output_file: PathBuf,
         timeout: Duration,
     ) -> Result<(), String> {
         let mut sol_process = Command::new("powershell")
             .args(["-Command", "-"])
             .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
             .spawn()
             .map_err(|err| format!("error while running solution: {}", err))?;
 
         sol_process
             .stdin
             .take()
-            .unwrap()
+            .ok_or(format!("error while taking stdin of powershell"))?
             .write_fmt(format_args!(
                 "{}",
-                format!("type {} | {}", input_file.display(), binary_path.display())
+                format!("Start-Process {} -RedirectStandardInput {} -RedirectStandardOutput {} -NoNewWindow -Wait", binary_path.display(), input_file.display(), output_file.display())
                     .replace("/", r#"\"#)
                     .as_str()
             ))
-            .unwrap();
+            .map_err(|err| format!("error while giving command to powershell: {}", err))?;
         let now = Instant::now();
 
         match sol_process.wait_timeout(timeout).unwrap() {
-            Some(_) => {
-                self.time = Some(now.elapsed().as_secs_f32());
-                let mut sol_output = String::new();
-                sol_process
-                    .stdout
-                    .unwrap()
-                    .read_to_string(&mut sol_output)
-                    .unwrap();
-
-                self.output = Some(sol_output.trim().to_string());
-                if self.answer.eq(self.output.as_ref().unwrap()) {
-                    self.status = Some(JudgeStatus::AC);
+            Some(x) => {
+                if x.success() {
+                    self.time = Some(now.elapsed().as_secs_f32());
+                    self.output = Some(
+                        fs::read_to_string(output_file)
+                            .map_err(|err| {
+                                format!("error while reading output from file: {}", err)
+                            })?
+                            .trim()
+                            .to_string(),
+                    );
+                    if self.answer.eq(self.output.as_ref().unwrap()) {
+                        self.status = Some(JudgeStatus::AC);
+                    } else {
+                        self.status = Some(JudgeStatus::WA);
+                    }
+                    if self.time.as_ref().unwrap() > &(timeout.as_secs_f32() - 2.0) {
+                        self.status = Some(JudgeStatus::TLE);
+                    }
                 } else {
-                    self.status = Some(JudgeStatus::WA);
-                }
-                if self.time.as_ref().unwrap() > &(timeout.as_secs_f32() - 2.0) {
-                    self.status = Some(JudgeStatus::TLE);
+                    self.status = Some(JudgeStatus::RE);
                 }
             }
             None => {
@@ -233,12 +237,25 @@ impl Judge {
         let timeout = Duration::from_secs(self.problem.time_limit + 2);
 
         let mut verdicts: Vec<Verdict> = vec![];
+        let output_dir = PathBuf::from(format!(
+            "{}/output/{}{}_{}",
+            directory, contest_type, contest_id, problem_id
+        ));
+
+        if !output_dir.exists() {
+            fs::create_dir(output_dir.clone())
+                .map_err(|err| format!("error while creating output directory: {}", err))?;
+        }
 
         for file_name in file_names {
             let input_file = PathBuf::from(format!(
                 "{}/test_cases/{}{}_{}/in/{}",
                 directory, contest_type, contest_id, problem_id, file_name
             ));
+
+            let mut output_file = output_dir.clone();
+            output_file.push(file_name.clone());
+
             let mut input = fs::read_to_string(&input_file)
                 .map_err(|err| format!("error while reading input file: {}", err))?;
             let mut output = fs::read_to_string(format!(
@@ -253,7 +270,7 @@ impl Judge {
             let binary_path = binary_path.clone();
 
             let mut verdict = Verdict::new(input, output);
-            verdict.exec(binary_path, input_file, timeout.clone())?;
+            verdict.exec(binary_path, input_file, output_file, timeout.clone())?;
             verdicts.push(verdict);
         }
 
@@ -286,6 +303,7 @@ pub async fn submit(
         let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
         file_names_map.insert(file_name, 1);
     }
+
     for path in out_paths {
         let path = path.unwrap().path();
         let file_name = path.file_name().unwrap().to_str().unwrap().to_string();

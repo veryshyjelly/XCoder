@@ -200,7 +200,7 @@ pub async fn submit(store: tauri::State<'_, StoreState>) -> Result<Vec<Verdict>,
             let res = judge::submit(problem, directory, language).await;
             store.0.lock().unwrap().filter_problems()?;
             res
-        },
+        }
         _ => Err("error while getting full problem".into()),
     }
 }
