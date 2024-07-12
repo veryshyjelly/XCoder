@@ -21,8 +21,19 @@ pub fn set_directory(directory: String, store: tauri::State<'_, StoreState>) -> 
 }
 
 #[tauri::command]
+pub fn set_editor(editor: String, store: tauri::State<'_, StoreState>) -> Result<(), String> {
+    store.0.lock().unwrap().editor = editor;
+    Ok(())
+}
+
+#[tauri::command]
 pub fn get_directory(store: tauri::State<'_, StoreState>) -> Result<String, ()> {
     Ok(store.0.lock().unwrap().directory.clone())
+}
+
+#[tauri::command]
+pub fn get_editor(store: tauri::State<'_, StoreState>) -> Result<String, ()> {
+    Ok(store.0.lock().unwrap().editor.clone())
 }
 
 #[tauri::command]
@@ -208,6 +219,11 @@ pub async fn submit(store: tauri::State<'_, StoreState>) -> Result<Vec<Verdict>,
 #[tauri::command]
 pub fn create_file(store: tauri::State<'_, StoreState>) -> Result<(), String> {
     store.0.lock().unwrap().create_file()
+}
+
+#[tauri::command]
+pub fn open_file(store: tauri::State<'_, StoreState>) -> Result<(), String> {
+    store.0.lock().unwrap().open_file_in_editor()
 }
 
 #[tauri::command]

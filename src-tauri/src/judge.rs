@@ -11,7 +11,7 @@ use wait_timeout::ChildExt;
 use zip::ZipArchive;
 
 use crate::problem::*;
-use crate::store::Language;
+use crate::store::{LangType, Language};
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Verdict {
@@ -49,12 +49,13 @@ impl Verdict {
 
     pub fn exec(
         &mut self,
-        binary_path: PathBuf,
+        binary_path: String,
         input_file: PathBuf,
         output_file: PathBuf,
         timeout: Duration,
     ) -> Result<(), String> {
         let mut sol_process = Command::new("powershell")
+            .current_dir(input_file.parent().unwrap())
             .args(["-Command", "-"])
             .stdin(Stdio::piped())
             .spawn()
@@ -66,8 +67,8 @@ impl Verdict {
             .ok_or(format!("error while taking stdin of powershell"))?
             .write_fmt(format_args!(
                 "{}",
-                format!("Start-Process {} -RedirectStandardInput {} -RedirectStandardOutput {} -NoNewWindow -Wait", binary_path.display(), input_file.display(), output_file.display())
-                    .replace("/", r#"\"#)
+                format!("Start-Process {} -RedirectStandardInput '{}' -RedirectStandardOutput '{}' -NoNewWindow -Wait", binary_path, input_file.display(), output_file.display())
+                    .replace("/", "\\")
                     .as_str()
             ))
             .map_err(|err| format!("error while giving command to powershell: {}", err))?;
@@ -111,7 +112,7 @@ pub struct Judge {
     problem: FullProblem,
     directory: String,
     language: Language,
-    binary_path: Option<PathBuf>,
+    binary_path: Option<String>,
 }
 
 impl Judge {
@@ -125,6 +126,29 @@ impl Judge {
     }
 
     pub fn compile(&mut self) -> Result<(), String> {
+        let mut file_path = PathBuf::from(format!(
+            "{}/{}/{}{}_{}",
+            self.directory,
+            self.language.source_directory(),
+            self.problem.contest_type.to_string().to_lowercase(),
+            self.problem.contest_id,
+            self.problem.problem_id,
+        ));
+        file_path.set_extension(self.language.extension());
+
+        if !file_path.exists() {
+            return Err(format!("the file {} does not exist", file_path.display()));
+        }
+
+        if self.language.lang_type() == LangType::Interpreted {
+            self.binary_path = Some(format!(
+                "{} '{}'",
+                self.language.interpreter(),
+                file_path.display()
+            ));
+            return Ok(());
+        }
+
         if !Path::new(&format!("{}/bin", self.directory)).exists() {
             fs::create_dir(&format!("{}/bin", self.directory))
                 .map_err(|err| format!("error while creating bin folder: {}", err))?;
@@ -137,18 +161,6 @@ impl Judge {
             self.problem.contest_id,
             self.problem.problem_id
         ));
-        let mut file_path = PathBuf::from(format!(
-            "{}/{}{}_{}",
-            self.directory,
-            self.problem.contest_type.to_string().to_lowercase(),
-            self.problem.contest_id,
-            self.problem.problem_id,
-        ));
-        file_path.set_extension(self.language.extension());
-
-        if !file_path.exists() {
-            return Err(format!("the file {} does not exist", file_path.display()));
-        }
 
         let output = self
             .language
@@ -161,7 +173,7 @@ impl Judge {
             .output()
             .map_err(|err| format!("error while compiling: {}", err))?;
         if output.status.success() {
-            self.binary_path = Some(binary_path);
+            self.binary_path = Some(binary_path.to_str().unwrap().into());
             Ok(())
         } else {
             Err(format!(
@@ -243,7 +255,7 @@ impl Judge {
         ));
 
         if !output_dir.exists() {
-            fs::create_dir(output_dir.clone())
+            fs::create_dir_all(output_dir.clone())
                 .map_err(|err| format!("error while creating output directory: {}", err))?;
         }
 

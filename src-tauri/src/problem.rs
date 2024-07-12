@@ -141,14 +141,17 @@ impl BareProblem {
         .text()
         .await
         .map_err(|err| format!("error while getting problem text: {}", err))?;
+
         text = text.replace("\\leq", "≤");
         let document = Html::parse_document(&text);
         let description_selector = Selector::parse(".lang-en")
             .map_err(|err| format!("error while parsing description selector: {}", err))?;
+
         let description = document
             .select(&description_selector)
             .next()
             .ok_or(format!("error while getting description"))?;
+
         let mut title = document
             .select(
                 &Selector::parse(".h2")
@@ -159,7 +162,9 @@ impl BareProblem {
             .text()
             .collect::<Vec<&str>>()
             .join("\n");
+
         title = title.split("Editorial").nth(0).unwrap().trim().to_string();
+
         let limits_text = document
             .select(
                 &Selector::parse(".row > div:nth-child(2) > p")
@@ -170,6 +175,7 @@ impl BareProblem {
             .text()
             .collect::<Vec<&str>>()
             .join("\n");
+
         let limits = limits_text.split("/");
         let time_limit: u64 = limits
             .clone()
