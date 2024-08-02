@@ -9,7 +9,7 @@ import { appWindow, LogicalSize } from "@tauri-apps/api/window";
 
 function App() {
   const [directory, setDirectory] = useState("");
-  const [editor, setEditor] = useState("");
+  const [editor, setEditor] = useState("code");
 
   useEffect(() => {
     invoke("get_directory")

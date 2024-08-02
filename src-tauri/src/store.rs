@@ -171,7 +171,7 @@ impl Store {
                 problem.contest_id,
                 problem.problem_id,
             ));
-            Command::new(self.editor.clone()).arg(file_path);
+            Command::new("code").arg(file_path);
             Ok(())
         } else {
             Err("got invalid problem while opening editor".into())
@@ -292,6 +292,7 @@ impl Language {
             Elixir => String::from("lib"),
             Rust => String::from("src/bin"),
             Kotlin => String::from("src"),
+            Haskell => String::from("src"),
             _ => String::from("."),
         }
     }

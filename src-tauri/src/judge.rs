@@ -67,7 +67,7 @@ impl Verdict {
             .ok_or(format!("error while taking stdin of powershell"))?
             .write_fmt(format_args!(
                 "{}",
-                format!("Start-Process {} -RedirectStandardInput '{}' -RedirectStandardOutput '{}' -NoNewWindow -Wait", binary_path, input_file.display(), output_file.display())
+                format!("Start-Process '{}' -RedirectStandardInput '{}' -RedirectStandardOutput '{}' -NoNewWindow -Wait", binary_path, input_file.display(), output_file.display())
                     .replace("/", "\\")
                     .as_str()
             ))
